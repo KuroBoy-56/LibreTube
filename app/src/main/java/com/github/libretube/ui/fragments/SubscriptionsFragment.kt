@@ -3,79 +3,53 @@ package com.github.libretube.ui.fragments
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import androidx.core.os.bundleOf
-import androidx.core.view.children
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.TextView
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.R
 import com.github.libretube.api.obj.StreamItem
-import com.github.libretube.constants.IntentData
-import com.github.libretube.constants.PreferenceKeys
+import com.github.libretube.api.obj.Subscription
 import com.github.libretube.databinding.FragmentSubscriptionsBinding
+import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.db.DatabaseHelper
-import com.github.libretube.db.DatabaseHolder
-import com.github.libretube.extensions.toID
+import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PreferenceHelper
-import com.github.libretube.obj.SelectableOption
-import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.ui.adapters.VideoCardsAdapter
 import com.github.libretube.ui.base.DynamicLayoutManagerFragment
-import com.github.libretube.ui.models.EditChannelGroupsModel
 import com.github.libretube.ui.models.SubscriptionsViewModel
-import com.github.libretube.ui.sheets.ChannelGroupsSheet
-import com.github.libretube.ui.sheets.FilterSortBottomSheet
-import com.github.libretube.ui.sheets.FilterSortBottomSheet.Companion.FILTER_SORT_REQUEST_KEY
-import com.github.libretube.ui.sheets.SubscriptionsBottomSheet
-import com.github.libretube.util.PlayingQueue
-import com.google.android.material.chip.Chip
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.imageview.ShapeableImageView
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-
 
 class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_subscriptions) {
     private var _binding: FragmentSubscriptionsBinding? = null
     private val binding get() = _binding!!
 
     private val viewModel: SubscriptionsViewModel by activityViewModels()
-    private val channelGroupsModel: EditChannelGroupsModel by activityViewModels()
-
-    // -1: all
-    // -2: ungrouped
-    private var selectedFilterGroup
-        set(value) = PreferenceHelper.putInt(PreferenceKeys.SELECTED_CHANNEL_GROUP, value)
-        get() = PreferenceHelper.getInt(PreferenceKeys.SELECTED_CHANNEL_GROUP, -1)
 
     private var isAppBarFullyExpanded = true
-
     private var feedAdapter = VideoCardsAdapter()
-    private var selectedSortOrder = PreferenceHelper.getInt(PreferenceKeys.FEED_SORT_ORDER, 0)
-        set(value) {
-            PreferenceHelper.putInt(PreferenceKeys.FEED_SORT_ORDER, value)
-            field = value
-        }
 
-    private var hideWatched =
-        PreferenceHelper.getBoolean(PreferenceKeys.HIDE_WATCHED_FROM_FEED, false)
-        set(value) {
-            PreferenceHelper.putBoolean(PreferenceKeys.HIDE_WATCHED_FROM_FEED, value)
-            field = value
-        }
+    // --- ESTADO DEL CARRUSEL ---
+    private lateinit var carouselAdapter: ChannelCarouselAdapter
+    private var allChannelsList: List<CarouselChannel> = emptyList()
 
-    private var showUpcoming =
-        PreferenceHelper.getBoolean(PreferenceKeys.SHOW_UPCOMING_IN_FEED, true)
-        set(value) {
-            PreferenceHelper.putBoolean(PreferenceKeys.SHOW_UPCOMING_IN_FEED, value)
-            field = value
-        }
+    private var hideWatched = PreferenceHelper.getBoolean(PreferenceKeys.HIDE_WATCHED_FROM_FEED, false)
+    private var showUpcoming = PreferenceHelper.getBoolean(PreferenceKeys.SHOW_UPCOMING_IN_FEED, true)
 
     override fun setLayoutManagers(gridItems: Int) {
-        _binding?.subFeed?.layoutManager = GridLayoutManager(context, gridItems)
+        _binding?.subFeed?.layoutManager = LinearLayoutManager(requireContext())
     }
 
     @SuppressLint("SetTextI18n")
@@ -83,16 +57,22 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
         _binding = FragmentSubscriptionsBinding.bind(view)
         super.onViewCreated(view, savedInstanceState)
 
-        setupSortAndFilter()
-
         binding.subFeed.adapter = feedAdapter
 
-        // Check if the AppBarLayout is fully expanded
+        carouselAdapter = ChannelCarouselAdapter { channel ->
+            if (channel.isViewAllBtn) {
+                showAllChannelsModal()
+            } else {
+                NavigationHelper.navigateChannel(requireContext(), channel.url)
+            }
+        }
+        binding.channelCarouselRv.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        binding.channelCarouselRv.adapter = carouselAdapter
+
         binding.subscriptionsAppBar.addOnOffsetChangedListener { _, verticalOffset ->
             isAppBarFullyExpanded = verticalOffset == 0
         }
 
-        // Determine if the child can scroll up
         binding.subRefresh.setOnChildScrollUpCallback { _, _ ->
             !isAppBarFullyExpanded || binding.subFeed.canScrollVertically(-1)
         }
@@ -104,9 +84,20 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
             viewModel.fetchFeed(requireContext(), forceRefresh = false)
         }
 
-        // only restore the previous state (i.e. scroll position) the first time the feed is shown
-        // any other feed updates are caused by manual refreshing and thus should reset the scroll
-        // position to zero
+        if (viewModel.subscriptions.value == null) {
+            viewModel.fetchSubscriptions(requireContext())
+        }
+
+        viewModel.subscriptions.observe(viewLifecycleOwner) { subscriptions ->
+            if (!subscriptions.isNullOrEmpty()) {
+                extractChannelsForCarousel(subscriptions)
+                // Solo cargar feed si la lista de videos está totalmente vacía
+                if (viewModel.videoFeed.value.isNullOrEmpty()) {
+                    viewModel.fetchFeed(requireContext(), forceRefresh = false)
+                }
+            }
+        }
+
         var alreadyShowedFeedOnce = false
         viewModel.videoFeed.observe(viewLifecycleOwner) { feed ->
             if (feed != null) {
@@ -116,28 +107,21 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
                 alreadyShowedFeedOnce = true
             }
 
-           feed?.firstOrNull { !it.isUpcoming }?.uploaded?.let {
+            feed?.firstOrNull { !it.isUpcoming }?.uploaded?.let {
                 PreferenceHelper.updateLastFeedWatchedTime(it, true)
             }
-
-            // ungrouped chip is hidden if the user doesn't use channel groups
-            binding.chipUngrouped.isVisible = !channelGroupsModel.groups.value.isNullOrEmpty()
-                    && filterUngroupedStreamItems(feed.orEmpty()).isNotEmpty()
         }
 
         viewModel.feedProgress.observe(viewLifecycleOwner) { progress ->
             if (progress == null || progress.currentProgress == progress.total) {
-                // the automatic animation by setting animateLayoutChanges looks very buggy
-                // so we display a custom animation when the feed finished loading
-                // https://stackoverflow.com/questions/37704046/animatelayoutchanges-buggy-when-changing-visibility-to-gone
                 binding.feedProgressContainer.animate()
                     .alpha(0.5f)
                     .scaleY(0.5f)
                     .withEndAction {
-                        val binding = _binding ?: return@withEndAction
-                        binding.feedProgressContainer.isGone = true
-                        binding.feedProgressContainer.scaleY = 1f
-                        binding.feedProgressContainer.alpha = 1f
+                        val bind = _binding ?: return@withEndAction
+                        bind.feedProgressContainer.isGone = true
+                        bind.feedProgressContainer.scaleY = 1f
+                        bind.feedProgressContainer.alpha = 1f
                     }
                     .setDuration(200)
                     .start()
@@ -151,29 +135,7 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
 
         binding.subRefresh.setOnRefreshListener {
             viewModel.fetchFeed(requireContext(), forceRefresh = true)
-        }
-
-        binding.toggleSubs.isVisible = true
-
-        binding.toggleSubs.setOnClickListener {
-            SubscriptionsBottomSheet()
-                .show(childFragmentManager)
-        }
-
-        binding.channelGroups.setOnCheckedStateChangeListener { group, _ ->
-            selectedFilterGroup = group.children.indexOfFirst { it.id == group.checkedChipId } - 1 // 0th index is "all" button
-
-            lifecycleScope.launch {
-                showFeed(restoreScrollState = false)
-            }
-        }
-
-        channelGroupsModel.groups.observe(viewLifecycleOwner) {
-            lifecycleScope.launch { initChannelGroups() }
-        }
-
-        binding.editGroups.setOnClickListener {
-            ChannelGroupsSheet().show(childFragmentManager, null)
+            viewModel.fetchSubscriptions(requireContext())
         }
 
         binding.subFeed.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -185,184 +147,133 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
                     }
             }
         })
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            val groups = DatabaseHolder.Database.subscriptionGroupsDao().getAll()
-                .sortedBy { it.index }
-            channelGroupsModel.groups.postValue(groups)
-        }
     }
 
-    private fun setupSortAndFilter() {
-        binding.filterSort.setOnClickListener {
-            childFragmentManager.setFragmentResultListener(
-                FILTER_SORT_REQUEST_KEY,
-                viewLifecycleOwner
-            ) { _, resultBundle ->
-                selectedSortOrder = resultBundle.getInt(IntentData.sortOptions)
-                hideWatched = resultBundle.getBoolean(IntentData.hideWatched)
-                showUpcoming = resultBundle.getBoolean(IntentData.showUpcoming)
-                lifecycleScope.launch { showFeed() }
-            }
-
-            FilterSortBottomSheet()
-                .apply {
-                    arguments = bundleOf(
-                        IntentData.sortOptions to fetchSortOptions(),
-                        IntentData.hideWatched to hideWatched,
-                        IntentData.showUpcoming to showUpcoming,
-                    )
-                }
-                .show(childFragmentManager)
-        }
-    }
-
-    private fun fetchSortOptions(): List<SelectableOption> {
-        return resources.getStringArray(R.array.sortOptions)
-            .mapIndexed { index, option ->
-                SelectableOption(isSelected = index == selectedSortOrder, name = option)
-            }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    private suspend fun playByGroup(groupIndex: Int) {
-        val streams = viewModel.videoFeed.value.orEmpty()
-            .filterByGroup(groupIndex)
-            .let {
-                DatabaseHelper.filterByStreamTypeAndWatchPosition(it, hideWatched, showUpcoming)
-            }
-            .sortedBySelectedOrder()
-
-        if (streams.isEmpty()) return
-
-        PlayingQueue.setStreams(streams)
-
-        NavigationHelper.navigateVideo(
-            requireContext(),
-            playerData = PlayerData(
-                videoId = streams.first().url,
-                keepQueue = true
+    private fun extractChannelsForCarousel(subscriptions: List<Subscription>) {
+        val uniqueChannels = subscriptions.distinctBy { it.url }.map {
+            CarouselChannel(
+                name = it.name,
+                url = it.url,
+                avatarUrl = it.avatar,
+                isViewAllBtn = false
             )
-        )
+        }
+
+        allChannelsList = uniqueChannels
+        val maxChannels = if (uniqueChannels.size > 15) 15 else uniqueChannels.size
+        val displayList = uniqueChannels.take(maxChannels).toMutableList()
+
+        displayList.add(CarouselChannel("Ver todos", "", null, true))
+        carouselAdapter.submitList(displayList)
     }
 
-    private fun filterUngroupedStreamItems(streamItems: List<StreamItem>): List<StreamItem> {
-        val groups = channelGroupsModel.groups.value.orEmpty()
+    private fun showAllChannelsModal() {
+        val bottomSheetDialog = BottomSheetDialog(requireActivity())
 
-        return streamItems.filter { streamItem ->
-            groups.none { it.channels.contains(streamItem.uploaderUrl.orEmpty().toID()) }
-        }
-    }
-
-    @SuppressLint("InflateParams")
-    private fun initChannelGroups() {
-        val binding = _binding ?: return
-
-        val groups = channelGroupsModel.groups.value.orEmpty()
-
-        binding.chipAll.isChecked = selectedFilterGroup == -1
-        binding.chipAll.setOnLongClickListener {
-            lifecycleScope.launch { playByGroup(0) }
-            true
+        val container = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(0, 30, 0, 30) // Más compacto arriba y abajo
         }
 
-        binding.chipUngrouped.isChecked = selectedFilterGroup == -2
-        binding.chipUngrouped.setOnLongClickListener {
-            lifecycleScope.launch { playByGroup(-1) }
-            true
+        val title = TextView(requireContext()).apply {
+            text = "Todas las suscripciones"
+            textSize = 18f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(40, 16, 40, 30) // Más compacto
+        }
+        container.addView(title)
+
+        val scrollView = android.widget.ScrollView(requireContext())
+        val listLayout = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
         }
 
-        binding.channelGroups.removeAllViews()
-        binding.channelGroups.addView(binding.chipAll)
+        val outValue = android.util.TypedValue()
+        requireContext().theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+        val selectableBackground = outValue.resourceId
 
-        groups.forEachIndexed { index, group ->
-            val chip = layoutInflater.inflate(R.layout.filter_chip, null) as Chip
-            chip.apply {
-                id = View.generateViewId()
-                isCheckable = true
-                text = group.name
-                setOnLongClickListener {
-                    // the index must be increased by one to skip the "all channels" group button
-                    lifecycleScope.launch { playByGroup(index + 1) }
-                    true
+        requireContext().theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, outValue, true)
+        val borderlessBackground = outValue.resourceId
+
+        allChannelsList.forEach { channel ->
+            val row = android.widget.LinearLayout(requireContext()).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(40, 16, 40, 16) // Padding vertical reducido para unir más las opciones
+                setBackgroundResource(selectableBackground)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    bottomSheetDialog.dismiss()
+                    NavigationHelper.navigateChannel(requireContext(), channel.url)
                 }
             }
 
-            binding.channelGroups.addView(chip)
+            val avatar = ShapeableImageView(requireContext()).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(100, 100) // Tamaño reducido a 100
+                val appearance = com.google.android.material.shape.ShapeAppearanceModel.builder()
+                    .setAllCornerSizes(com.google.android.material.shape.RelativeCornerSize(0.5f)).build()
+                shapeAppearanceModel = appearance
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                setBackgroundColor(androidx.core.content.ContextCompat.getColor(requireContext(), android.R.color.darker_gray))
+            }
+            ImageHelper.loadImage(channel.avatarUrl, avatar, true)
 
-            if (index == selectedFilterGroup) binding.channelGroups.check(chip.id)
+            val name = TextView(requireContext()).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = 32 // Más pegado a la imagen
+                }
+                text = channel.name
+                textSize = 16f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+
+            val bellBtn = ImageView(requireContext()).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(80, 80)
+                setImageResource(R.drawable.ic_notifications)
+                setBackgroundResource(borderlessBackground)
+                setPadding(12, 12, 12, 12)
+                isClickable = true
+                isFocusable = true
+                tag = true
+                setOnClickListener {
+                    val isActivated = tag as Boolean
+                    tag = !isActivated
+                    alpha = if (!isActivated) 1.0f else 0.4f
+                    val msg = if (!isActivated) "Notificaciones activadas para ${channel.name}" else "Notificaciones desactivadas para ${channel.name}"
+                    Snackbar.make(container, msg, Snackbar.LENGTH_SHORT).show()
+                }
+            }
+
+            row.addView(avatar)
+            row.addView(name)
+            row.addView(bellBtn)
+            listLayout.addView(row)
         }
 
-        // only show "ungrouped" chip category if there actually are any ungrouped subscriptions
-        // not sure if it's worth loading them here
-        binding.channelGroups.addView(binding.chipUngrouped)
-    }
-
-    private fun List<StreamItem>.filterByGroup(groupIndex: Int): List<StreamItem> {
-        if (groupIndex == -1) return this
-        if (groupIndex == -2) return filterUngroupedStreamItems(this)
-
-        val group = channelGroupsModel.groups.value?.getOrNull(groupIndex)
-        return filter {
-            val channelId = it.uploaderUrl.orEmpty().toID()
-            group?.channels?.contains(channelId) != false
-        }
-    }
-
-    private fun List<StreamItem>.sortedBySelectedOrder() = when (selectedSortOrder) {
-        0 -> this
-        1 -> this.reversed()
-        2 -> this.sortedBy { it.views }.reversed()
-        3 -> this.sortedBy { it.views }
-        4 -> this.sortedBy { it.uploaderName }
-        5 -> this.sortedBy { it.uploaderName }.reversed()
-        else -> this
+        scrollView.addView(listLayout)
+        container.addView(scrollView)
+        bottomSheetDialog.setContentView(container)
+        bottomSheetDialog.show()
     }
 
     private suspend fun showFeed(restoreScrollState: Boolean = true) {
         val binding = _binding ?: return
         val videoFeed = viewModel.videoFeed.value ?: return
 
-        val feed = videoFeed
-            .filterByGroup(selectedFilterGroup)
-            .let {
-                DatabaseHelper.filterByStreamTypeAndWatchPosition(it, hideWatched, showUpcoming)
-            }
-
-        val sortedFeed = feed
-            .sortedBySelectedOrder()
-            .toMutableList()
-
-        // add an "all caught up item"
-        if (selectedSortOrder == 0) {
-            val lastCheckedFeedTime = PreferenceHelper.getLastCheckedFeedTime(seenByUser = true)
-            val caughtUpIndex =
-                feed.indexOfFirst { it.uploaded <= lastCheckedFeedTime && !it.isUpcoming }
-            if (caughtUpIndex > 0 && !feed[caughtUpIndex - 1].isUpcoming) {
-                sortedFeed.add(
-                    caughtUpIndex,
-                    StreamItem(type = VideoCardsAdapter.CAUGHT_UP_STREAM_TYPE)
-                )
-            }
-        }
+        val feed = DatabaseHelper.filterByStreamTypeAndWatchPosition(videoFeed, hideWatched, showUpcoming)
 
         binding.subProgress.isGone = true
 
-        val notLoaded = viewModel.videoFeed.value.isNullOrEmpty()
-        binding.subFeed.isGone = notLoaded
-        binding.emptyFeed.isVisible = notLoaded
-
-        binding.toggleSubs.text = getString(R.string.subscriptions)
+        val notLoaded = videoFeed.isEmpty()
+        binding.subFeed.isGone = notLoaded && feed.isEmpty()
+        binding.emptyFeed.isVisible = notLoaded || feed.isEmpty()
 
         binding.subRefresh.isRefreshing = false
 
-        feedAdapter.submitList(sortedFeed) {
+        feedAdapter.submitList(feed) {
             if (restoreScrollState) {
-                // manually restore the previous feed state
                 binding.subFeed.layoutManager?.onRestoreInstanceState(viewModel.subFeedRecyclerViewState)
             } else {
                 binding.subFeed.scrollToPosition(0)
@@ -372,11 +283,94 @@ class SubscriptionsFragment : DynamicLayoutManagerFragment(R.layout.fragment_sub
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        // manually restore the recyclerview state after rotation due to https://github.com/material-components/material-components-android/issues/3473
         binding.subFeed.layoutManager?.onRestoreInstanceState(viewModel.subFeedRecyclerViewState)
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     fun removeItem(videoId: String) {
         feedAdapter.removeItemById(videoId)
     }
+}
+
+// --- ADAPTADOR INTERNO PARA EL CARRUSEL ---
+data class CarouselChannel(
+    val name: String,
+    val url: String,
+    val avatarUrl: String?,
+    val isViewAllBtn: Boolean
+)
+
+class ChannelCarouselAdapter(private val onChannelClick: (CarouselChannel) -> Unit) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    private var items = listOf<CarouselChannel>()
+
+    @SuppressLint("NotifyDataSetChanged")
+    fun submitList(newItems: List<CarouselChannel>) {
+        items = newItems
+        notifyDataSetChanged()
+    }
+
+    override fun getItemViewType(position: Int): Int {
+        return if (items[position].isViewAllBtn) 1 else 0
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        return if (viewType == 1) {
+            val view = LayoutInflater.from(parent.context).inflate(R.layout.filter_chip, parent, false)
+            ViewAllViewHolder(view)
+        } else {
+            val layout = android.widget.LinearLayout(parent.context).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                layoutParams = ViewGroup.MarginLayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(6, 0, 6, 0) } // Margen más pequeño
+            }
+
+            val imageView = ShapeableImageView(parent.context).apply {
+                id = View.generateViewId()
+                layoutParams = android.widget.LinearLayout.LayoutParams(100, 100) // Tamaño reducido a 100
+                val appearance = com.google.android.material.shape.ShapeAppearanceModel.builder().setAllCornerSizes(com.google.android.material.shape.RelativeCornerSize(0.5f)).build()
+                shapeAppearanceModel = appearance
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+            }
+
+            val textView = TextView(parent.context).apply {
+                id = View.generateViewId()
+                layoutParams = android.widget.LinearLayout.LayoutParams(130, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = 4 // Más pegado a la imagen
+                }
+                textAlignment = View.TEXT_ALIGNMENT_CENTER
+                textSize = 10f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+
+            layout.addView(imageView)
+            layout.addView(textView)
+            ChannelViewHolder(layout, imageView, textView)
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        val item = items[position]
+        if (holder is ChannelViewHolder) {
+            holder.nameView.text = item.name
+            ImageHelper.loadImage(item.avatarUrl, holder.imageView, true)
+            holder.itemView.setOnClickListener { onChannelClick(item) }
+        } else if (holder is ViewAllViewHolder) {
+            (holder.itemView as? com.google.android.material.chip.Chip)?.text = "Ver todos \u2192"
+            holder.itemView.setOnClickListener { onChannelClick(item) }
+        }
+    }
+
+    override fun getItemCount() = items.size
+
+    class ChannelViewHolder(view: View, val imageView: ShapeableImageView, val nameView: TextView) : RecyclerView.ViewHolder(view)
+    class ViewAllViewHolder(view: View) : RecyclerView.ViewHolder(view)
 }

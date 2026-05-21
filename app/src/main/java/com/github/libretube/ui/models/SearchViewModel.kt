@@ -42,9 +42,6 @@ class SearchViewModel : ViewModel() {
         .mapLatest { it.map { it.query } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    /**
-     * Emits a [Pair] of ([SearchDataType.HISTORY] and the results ([List]))
-     */
     @OptIn(ExperimentalCoroutinesApi::class)
     private val filteredSearchHistory = combine(searchQuery, searchHistoryList) { query, list ->
         val result =
@@ -54,9 +51,6 @@ class SearchViewModel : ViewModel() {
         SearchDataType.HISTORY to result
     }
 
-    /**
-     * Emits a [Pair] of ([SearchDataType.SUGGESTION]  and the results ([List]))
-     */
     @OptIn(ExperimentalCoroutinesApi::class)
     private val onlineSearchSuggestions =
         combine(searchQuery, isSearchSuggestionEnabled) { query, suggestionsEnabled ->
@@ -71,12 +65,6 @@ class SearchViewModel : ViewModel() {
             }
         }.mapLatest { SearchDataType.SUGGESTION to it }
 
-    /**
-     * Get filtered search history and search suggestions combined. Both the histories and
-     * suggestions are being collected concurrently. Whichever completes the collection first,
-     * it will emit ([Result]) immediately with the other list being `null`. Once both sides
-     * complete their collections, it will emit another result ([Result]) with both list ready.
-     */
     @OptIn(ExperimentalCoroutinesApi::class)
     val searchSuggestions = merge(filteredSearchHistory, onlineSearchSuggestions)
         .runningFold(Result()) { prev, new ->

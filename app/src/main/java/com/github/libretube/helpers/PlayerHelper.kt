@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.Looper
 import android.util.Base64
 import android.view.accessibility.CaptioningManager
-import androidx.annotation.OptIn
 import androidx.annotation.StringRes
 import androidx.core.app.PendingIntentCompat
 import androidx.core.app.RemoteActionCompat
@@ -21,8 +20,8 @@ import androidx.media3.common.Format
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -47,6 +46,9 @@ import com.github.libretube.enums.SbSkipOptions
 import com.github.libretube.extensions.seekBy
 import com.github.libretube.extensions.togglePlayPauseState
 import com.github.libretube.obj.VideoStats
+import com.github.libretube.services.AbstractPlayerService
+import com.github.libretube.services.OfflinePlayerService
+import com.github.libretube.services.OnlinePlayerService
 import com.github.libretube.util.TextUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,29 +57,19 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 object PlayerHelper {
     private const val ACTION_MEDIA_CONTROL = "media_control"
     const val CONTROL_TYPE = "control_type"
     const val SPONSOR_HIGHLIGHT_CATEGORY = "poi_highlight"
     const val ROLE_FLAG_AUTO_GEN_SUBTITLE = C.ROLE_FLAG_SUPPLEMENTARY
-    private const val MINIMUM_BUFFER_DURATION = 1000 * 10 // exo default is 50s
+    private const val MINIMUM_BUFFER_DURATION = 1000 * 10
     const val WATCH_POSITION_TIMER_DELAY_MS = 1000L
 
-    /**
-     * Playback speed while the fast forward action is active (triggered by a long press on the player)
-     *
-     * Should be kept in sync with `fast_forward_view.xml`
-     */
     const val FAST_FORWARD_SPEED_FACTOR = 2f
 
-    /**
-     * Maximum playback speed supported by ExoPlayer
-     */
     const val MAXIMUM_PLAYBACK_SPEED = 8f
 
-    /**
-     * The maximum amount of time to wait until the video starts playing: 10 minutes
-     */
     const val MAX_BUFFER_DELAY = 10 * 60 * 1000L
 
     val repeatModes = listOf(
@@ -86,41 +78,27 @@ object PlayerHelper {
         Player.REPEAT_MODE_ALL to R.string.repeat_mode_all
     )
 
-    /**
-     * A list of all categories that are not disabled by default
-     * Also update `sponsorblock_settings.xml` when modifying this!
-     */
     private val sbDefaultValues = mapOf(
         "sponsor" to SbSkipOptions.AUTOMATIC,
         "selfpromo" to SbSkipOptions.AUTOMATIC,
         "exclusive_access" to SbSkipOptions.AUTOMATIC,
     )
 
-    /**
-     * Create a base64 encoded DASH stream manifest
-     */
     fun createDashSource(streams: Streams, context: Context): Uri {
-        val manifest = DashHelper.createManifest(
-            streams,
-            DisplayHelper.supportsHdr(context)
-        )
+        if (!streams.dash.isNullOrEmpty()) {
+            return ProxyHelper.rewriteUrlUsingProxyPreference(streams.dash!!).toUri()
+        }
 
-        // encode to base64
+        val manifest = DashHelper.createManifest(streams)
         val encoded = Base64.encodeToString(manifest.toByteArray(), Base64.DEFAULT)
         return "data:application/dash+xml;charset=utf-8;base64,$encoded".toUri()
     }
 
-    /**
-     * Get the system's default captions style
-     */
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun getCaptionStyle(context: Context): CaptionStyleCompat {
         val captioningManager = context.getSystemService<CaptioningManager>()!!
         return if (!captioningManager.isEnabled) {
-            // system captions are disabled, using android default captions style
             CaptionStyleCompat.DEFAULT
         } else {
-            // system captions are enabled
             CaptionStyleCompat.createFromCaptionStyle(captioningManager.userStyle)
         }
     }
@@ -133,11 +111,9 @@ object PlayerHelper {
 
         return when (fullscreenOrientationPref) {
             "ratio" -> {
-                // probably a youtube shorts video
                 if (isVerticalVideo) {
                     ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
-                } // a video with normal aspect ratio
-                else {
+                } else {
                     ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 }
             }
@@ -388,16 +364,7 @@ object PlayerHelper {
         )
 
     fun getDefaultResolution(context: Context, isFullscreen: Boolean): Int? {
-        var prefKey = if (NetworkHelper.isNetworkMetered(context)) {
-            PreferenceKeys.DEFAULT_RESOLUTION_MOBILE
-        } else {
-            PreferenceKeys.DEFAULT_RESOLUTION
-        }
-        if (!isFullscreen) prefKey += "_no_fullscreen"
-
-        return PreferenceHelper.getString(prefKey, "")
-            .replace("p", "")
-            .toIntOrNull()
+        return Int.MAX_VALUE
     }
 
     fun getIntentActionName(context: Context): String {
@@ -422,9 +389,6 @@ object PlayerHelper {
         return RemoteActionCompat(icon, text, text, pendingIntent)
     }
 
-    /**
-     * Create controls to use in the PiP window
-     */
     fun getPiPModeActions(activity: Activity, isPlaying: Boolean): List<RemoteActionCompat> {
         val audioModeAction = getRemoteAction(
             activity,
@@ -466,7 +430,7 @@ object PlayerHelper {
             listOf(rewindAction, playPauseAction, forwardAction)
         }
     }
-    @OptIn(UnstableApi::class)
+
     private fun createRendererFactory(context: Context): DefaultRenderersFactory {
         val renderersFactory = object : DefaultRenderersFactory(context) {
             override fun buildTextRenderers(
@@ -481,17 +445,33 @@ object PlayerHelper {
                 (out.last() as? TextRenderer)?.experimentalSetLegacyDecodingEnabled(true)
             }
         }
+        renderersFactory.setEnableDecoderFallback(true)
+        renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         return renderersFactory
     }
-    /**
-     * Create a basic player, that is used for all types of playback situations inside the app
-     */
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
+
     fun createPlayer(context: Context, trackSelector: DefaultTrackSelector): ExoPlayer {
-        val dataSourceFactory = DefaultDataSource.Factory(context)
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(userAgent)
+            .setAllowCrossProtocolRedirects(true)
+
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+            .build()
+
+        trackSelector.parameters = trackSelector.buildUponParameters()
+            .clearVideoSizeConstraints()
+            .clearViewportSizeConstraints()
+            .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+            .setForceHighestSupportedBitrate(true)
+            .setExceedVideoConstraintsIfNecessary(true)
+            .setExceedRendererCapabilitiesIfNecessary(true)
+            .setAllowVideoMixedDecoderSupportAdaptiveness(true)
+            .setAllowVideoNonSeamlessAdaptiveness(true)
             .build()
 
         return ExoPlayer.Builder(context)
@@ -502,19 +482,15 @@ object PlayerHelper {
             .setHandleAudioBecomingNoisy(true)
             .setLoadControl(getLoadControl())
             .setAudioAttributes(audioAttributes, handleAudioFocus)
+            .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
             .build()
             .apply {
                 loadPlaybackParams()
             }
     }
 
-    /**
-     * Get the load controls for the player (buffering, etc)
-     */
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun getLoadControl(): LoadControl {
         return DefaultLoadControl.Builder()
-            // cache the last three minutes
             .setBackBuffer(1000 * 60 * 3, true)
             .setBufferDurationsMs(
                 MINIMUM_BUFFER_DURATION,
@@ -525,10 +501,6 @@ object PlayerHelper {
             .build()
     }
 
-    /**
-     * Load playback parameters such as speed and skip silence
-     */
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun ExoPlayer.loadPlaybackParams(): ExoPlayer {
         skipSilenceEnabled = skipSilence
 
@@ -536,9 +508,6 @@ object PlayerHelper {
         return this
     }
 
-    /**
-     * get the categories for sponsorBlock
-     */
     fun getSponsorBlockCategories(): MutableMap<String, SbSkipOptions> {
         val categories: MutableMap<String, SbSkipOptions> = mutableMapOf()
 
@@ -555,18 +524,10 @@ object PlayerHelper {
             }
         }
 
-        // Add the highlights category to display in the chapters
         if (sponsorBlockHighlights) categories[SPONSOR_HIGHLIGHT_CATEGORY] = SbSkipOptions.OFF
         return categories
     }
 
-    /**
-     * Check for SponsorBlock segments matching the current player position
-     * Please make sure to set [Segment#skipped] to true after seeking to the segment end
-     *
-     * @param segments List of the SponsorBlock segments
-     * @return If segment found and should skip manually, the end position of the segment in ms, otherwise null
-     */
     fun Player.getCurrentSegment(
         segments: List<Segment>,
         sponsorBlockConfig: MutableMap<String, SbSkipOptions>,
@@ -575,7 +536,6 @@ object PlayerHelper {
             val (start, end) = segment.segmentStartAndEnd
             val (segmentStart, segmentEnd) = (start * 1000f).toLong() to (end * 1000f).toLong()
 
-            // avoid seeking to the same segment multiple times, e.g. when the SB segment is at the end of the video
             if (segmentEnd - currentPosition in 0..1000) continue
             if (currentPosition !in segmentStart until segmentEnd) continue
 
@@ -588,9 +548,6 @@ object PlayerHelper {
         return null
     }
 
-    /**
-     * Get the name of the currently played chapter
-     */
     fun getCurrentChapterIndex(currentPositionMs: Long, chapters: List<ChapterSegment>): Int? {
         val currentPositionSeconds = currentPositionMs / 1000
         return chapters
@@ -599,8 +556,6 @@ object PlayerHelper {
             .takeIf { it >= 0 }
             ?.takeIf { index ->
                 val chapter = chapters[index]
-                // remove the video highlight if it's already longer ago than [ChapterSegment.HIGHLIGHT_LENGTH],
-                // otherwise the SponsorBlock highlight would be shown from its starting point to the end
                 val isWithinMaxHighlightDuration =
                     (currentPositionSeconds - chapter.start) < ChapterSegment.HIGHLIGHT_LENGTH
                 chapter.highlightDrawable == null || isWithinMaxHighlightDuration
@@ -653,60 +608,24 @@ object PlayerHelper {
         }
     }
 
-    /**
-     * Get the track type string resource corresponding to ExoPlayer role flags used for audio
-     * track types.
-     *
-     * If the role flags doesn't have any role flags used for audio track types, the string
-     * resource `unknown_audio_track_type` is returned.
-     *
-     * @param context   a context to get the string resources used to build the audio track type
-     * @param roleFlags the ExoPlayer role flags from which the audio track type will be returned
-     * @return the track type string resource corresponding to an ExoPlayer role flag or the
-     * `unknown_audio_track_type` one if no role flags corresponding to the ones used for audio
-     * track types is set
-     */
     private fun getDisplayAudioTrackTypeFromFormat(
         context: Context,
         @C.RoleFlags roleFlags: Int
     ): String {
-        // These role flags should not be set together, so the first role only take into account
-        // flag which matches
         return when {
-            // If the flag ROLE_FLAG_DESCRIBES_VIDEO is set, return the descriptive_audio_track
-            // string resource
             roleFlags and C.ROLE_FLAG_DESCRIBES_VIDEO == C.ROLE_FLAG_DESCRIBES_VIDEO ->
                 context.getString(R.string.descriptive_audio_track)
 
-            // If the flag ROLE_FLAG_DESCRIBES_VIDEO is set, return the dubbed_audio_track
-            // string resource
             roleFlags and C.ROLE_FLAG_DUB == C.ROLE_FLAG_DUB ->
                 context.getString(R.string.dubbed_audio_track)
 
-            // If the flag ROLE_FLAG_DESCRIBES_VIDEO is set, return the original_or_main_audio_track
-            // string resource
             roleFlags and C.ROLE_FLAG_MAIN == C.ROLE_FLAG_MAIN ->
                 context.getString(R.string.original_or_main_audio_track)
 
-            // Return the unknown_audio_track_type string resource for any other value
             else -> context.getString(R.string.unknown_audio_track_type)
         }
     }
 
-    /**
-     * Get an audio track name from an audio format, using its language tag and its role flags.
-     *
-     * If the given language is `null`, the string resource `unknown_audio_language` is used
-     * instead and when the given role flags have no track type value used by the app, the string
-     * resource `unknown_audio_track_type` is used instead.
-     *
-     * @param context                   a context to get the string resources used to build the
-     *                                  audio track name
-     * @param audioLanguageAndRoleFlags a pair of an audio format language tag and role flags from
-     *                                  which the audio track name will be built
-     * @return an audio track name of an audio format language and role flags, localized according
-     * to the language preferences of the user
-     */
     fun getAudioTrackNameFromFormat(
         context: Context,
         audioLanguageAndRoleFlags: Pair<String?, @C.RoleFlags Int>
@@ -725,25 +644,10 @@ object PlayerHelper {
             )
     }
 
-    /**
-     * Get audio languages with their role flags of supported formats from ExoPlayer track groups
-     * and only the selected ones if requested.
-     *
-     * Duplicate audio languages with their role flags are removed.
-     *
-     * @param groups                 the list of [Tracks.Group]s of the current tracks played by the player
-     * @param keepOnlySelectedTracks whether to get only the selected audio languages with their
-     *                               role flags among the supported ones
-     * @return a list of distinct audio languages with their role flags from the supported formats
-     * of the given track groups and only the selected ones if requested
-     */
     fun getAudioLanguagesAndRoleFlagsFromTrackGroups(
         groups: List<Tracks.Group>,
         keepOnlySelectedTracks: Boolean
     ): List<Pair<String?, @C.RoleFlags Int>> {
-        // Filter unsupported tracks and keep only selected tracks if requested
-        // Use a lambda expression to avoid checking on each audio format if we keep only selected
-        // tracks or not
         val trackFilter = if (keepOnlySelectedTracks) {
             { group: Tracks.Group, trackIndex: Int ->
                 group.isTrackSupported(trackIndex) && group.isTrackSelected(
@@ -765,25 +669,8 @@ object PlayerHelper {
         }.distinct()
     }
 
-    /**
-     * Check whether the given flag is set in the given bitfield.
-     *
-     * @param bitField a bitfield
-     * @param flag     a flag to check its presence in the given bitfield
-     * @return whether the given flag is set in the given bitfield
-     */
     private fun isFlagSet(bitField: Int, flag: Int) = bitField and flag == flag
 
-    /**
-     * Check whether the given ExoPlayer role flags contain at least one flag used for audio
-     * track types.
-     *
-     * ExoPlayer role flags currently used for audio track types are [C.ROLE_FLAG_DESCRIBES_VIDEO],
-     * [C.ROLE_FLAG_DUB], [C.ROLE_FLAG_MAIN] and [C.ROLE_FLAG_ALTERNATE].
-     *
-     * @param roleFlags the ExoPlayer role flags to check, an int representing a bitfield
-     * @return whether the provided ExoPlayer flags contain a flag used for audio track types
-     */
     fun haveAudioTrackRoleFlagSet(@C.RoleFlags roleFlags: Int): Boolean {
         return isFlagSet(roleFlags, C.ROLE_FLAG_DESCRIBES_VIDEO) ||
                 isFlagSet(roleFlags, C.ROLE_FLAG_DUB) ||
@@ -791,42 +678,17 @@ object PlayerHelper {
                 isFlagSet(roleFlags, C.ROLE_FLAG_ALTERNATE)
     }
 
-    /**
-     * Get the full audio role flags of an audio track.
-     *
-     * Full role flags are the existing flags parsed by ExoPlayer and the flags coming from the
-     * audio track type parsed from the `acont` property value of the stream manifest URL.
-     *
-     * The following table describes what value is parsed
-     *
-     * | `acont` value  | Role flag added from [ExoPlayer track role flags][C.RoleFlags] |
-     * | ------------- | ------------- |
-     * | `dubbed`  | [C.ROLE_FLAG_DUB]  |
-     * | `descriptive`  | [C.ROLE_FLAG_DESCRIBES_VIDEO]  |
-     * | `original`  | [C.ROLE_FLAG_MAIN]  |
-     * | everything else  | [C.ROLE_FLAG_ALTERNATE]  |
-     *
-     * @param roleFlags the current role flags of the audio track
-     * @param acontValue the value of the `acont` property
-     * @return the full audio role flags of the audio track like described above
-     */
     fun getFullAudioRoleFlags(roleFlags: Int, acontValue: String): Int {
         val acontRoleFlags = when (acontValue.lowercase()) {
             "dubbed" -> C.ROLE_FLAG_DUB
             "descriptive" -> C.ROLE_FLAG_DESCRIBES_VIDEO
             "original" -> C.ROLE_FLAG_MAIN
-            // Original audio tracks without other audio track should not have the `acont` property
-            // nor the `xtags` one, so the the track should be not set as the main one
-            // The alternate role flag should be the most relevant flag in this case
             else -> C.ROLE_FLAG_ALTERNATE
         }
 
-        // Add this flag to the existing ones (if it has been not already added) and return the
-        // result of this operation
         return roleFlags or acontRoleFlags
     }
 
-    @OptIn(UnstableApi::class)
     fun getVideoStats(tracks: Tracks, videoId: String): VideoStats {
         val videoStats = VideoStats(videoId, "", "", "")
 
@@ -878,9 +740,6 @@ object PlayerHelper {
         }
     }
 
-    /**
-     * Handle basic [PlayerEvent]'s that can be handled by the player itself without context
-     */
     fun handlePlayerAction(player: Player, playerEvent: PlayerEvent): Boolean {
         return when (playerEvent) {
             PlayerEvent.PlayPause -> {
@@ -899,6 +758,18 @@ object PlayerHelper {
             }
 
             else -> false
+        }
+    }
+
+    fun stopPlayerService(context: Context) {
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            val eventDown = android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE)
+            val eventUp = android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE)
+            audioManager.dispatchMediaKeyEvent(eventDown)
+            audioManager.dispatchMediaKeyEvent(eventUp)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

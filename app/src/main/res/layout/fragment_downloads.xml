@@ -15,7 +15,14 @@
             android:id="@+id/tab_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:tabMode="scrollable" />
+            app:tabBackground="@null"
+            app:tabRippleColor="@null"
+            app:tabIndicatorColor="?attr/colorOnSurface"
+            app:tabIndicatorHeight="3dp"
+            app:tabSelectedTextColor="?attr/colorOnSurface"
+            app:tabTextColor="?android:attr/textColorSecondary"
+            app:tabMode="fixed"
+            app:tabGravity="fill" />
 
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/downloads_pager"

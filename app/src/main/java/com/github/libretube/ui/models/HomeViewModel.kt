@@ -5,158 +5,196 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.libretube.api.MediaServiceRepository
-import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.SubscriptionHelper
 import com.github.libretube.api.TrendingCategory
-import com.github.libretube.api.obj.Playlists
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.db.DatabaseHelper
-import com.github.libretube.db.DatabaseHolder
-import com.github.libretube.db.obj.PlaylistBookmark
-import com.github.libretube.extensions.runSafely
-import com.github.libretube.extensions.updateIfChanged
-import com.github.libretube.helpers.PlayerHelper
+import com.github.libretube.helpers.AlgoritmoHelper
 import com.github.libretube.helpers.PreferenceHelper
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class HomeViewModel : ViewModel() {
-    private val hideWatched
-        get() = PreferenceHelper.getBoolean(
-            PreferenceKeys.HIDE_WATCHED_FROM_FEED,
-            false
-        )
-    private val showUpcoming
-        get() = PreferenceHelper.getBoolean(
-            PreferenceKeys.SHOW_UPCOMING_IN_FEED,
-            true
-        )
+    val todosFeed: MutableLiveData<List<StreamItem>> = MutableLiveData()
+    val subsFeed: MutableLiveData<List<StreamItem>> = MutableLiveData()
+    val categoryFeed: MutableLiveData<List<StreamItem>> = MutableLiveData()
+    val customFeed: MutableLiveData<List<StreamItem>> = MutableLiveData()
+    val isLoading: MutableLiveData<Boolean> = MutableLiveData(false)
 
-    val trending: MutableLiveData<Pair<TrendingCategory, TrendsViewModel.TrendingStreams>> =
-        MutableLiveData(null)
-    val feed: MutableLiveData<List<StreamItem>> = MutableLiveData(null)
-    val bookmarks: MutableLiveData<List<PlaylistBookmark>> = MutableLiveData(null)
-    val playlists: MutableLiveData<List<Playlists>> = MutableLiveData(null)
-    val continueWatching: MutableLiveData<List<StreamItem>> = MutableLiveData(null)
-    val isLoading: MutableLiveData<Boolean> = MutableLiveData(true)
-    val loadedSuccessfully: MutableLiveData<Boolean> = MutableLiveData(false)
+    private var loadJob: Job? = null
 
-    private val sections get() = listOf(trending, feed, bookmarks, playlists, continueWatching)
+    private val hideWatched get() = PreferenceHelper.getBoolean(PreferenceKeys.HIDE_WATCHED_FROM_FEED, false)
+    private val showUpcoming get() = PreferenceHelper.getBoolean(PreferenceKeys.SHOW_UPCOMING_IN_FEED, true)
 
-    private var loadHomeJob: Job? = null
-
-    fun loadHomeFeed(
-        context: Context,
-        subscriptionsViewModel: SubscriptionsViewModel,
-        visibleItems: Set<String>,
-        onUnusualLoadTime: () -> Unit
-    ) {
+    fun loadTodos(context: Context, subscriptionsViewModel: SubscriptionsViewModel) {
         isLoading.value = true
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val subs = try { tryLoadFeed(subscriptionsViewModel) } catch (e: Exception) { emptyList() }
 
-        loadHomeJob?.cancel()
-        loadHomeJob = viewModelScope.launch {
-            val result = async {
-                awaitAll(
-                    async { if (visibleItems.contains(TRENDING)) loadTrending(context) },
-                    async { if (visibleItems.contains(FEATURED)) loadFeed(subscriptionsViewModel) },
-                    async { if (visibleItems.contains(BOOKMARKS)) loadBookmarks() },
-                    async { if (visibleItems.contains(PLAYLISTS)) loadPlaylists() },
-                    async { if (visibleItems.contains(WATCHING)) loadVideosToContinueWatching() }
-                )
-                loadedSuccessfully.value = sections.any { it.value != null }
-                isLoading.value = false
-            }
+                var mixVideos = emptyList<StreamItem>()
+                try {
+                    val fallbackCat = listOf(TrendingCategory.MUSIC, TrendingCategory.GAMING, TrendingCategory.TRAILERS).random()
+                    mixVideos = MediaServiceRepository.instance.getTrending("US", fallbackCat)
+                } catch (e: Exception) {}
 
-            withContext(Dispatchers.IO) {
-                delay(UNUSUAL_LOAD_TIME_MS)
-                if (result.isActive) {
-                    onUnusualLoadTime.invoke()
+                if (mixVideos.isEmpty()) {
+                    try {
+                        val busquedaSegura = listOf("videos populares", "lo mas nuevo").random()
+                        var result = try {
+                            MediaServiceRepository.instance.getSearchResults(busquedaSegura, "videos")
+                        } catch (e: Exception) {
+                            MediaServiceRepository.instance.getSearchResults(busquedaSegura, "")
+                        }
+                        mixVideos = result.items.filterIsInstance<StreamItem>()
+                    } catch (e: Exception) {}
                 }
+
+                val combined = (subs + mixVideos).distinctBy { it.url }.shuffled()
+                todosFeed.postValue(combined)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                todosFeed.postValue(emptyList())
+            } finally {
+                isLoading.postValue(false)
             }
         }
     }
 
-    private suspend fun loadTrending(context: Context) {
-        val region = PreferenceHelper.getTrendingRegion(context)
-        val category = PreferenceHelper.getString(
-            PreferenceKeys.TRENDING_CATEGORY,
-            TrendingCategory.LIVE.name
-        ).let { TrendingCategory.valueOf(it) }
-
-        runSafely(
-            onSuccess = { videos ->
-                trending.updateIfChanged(
-                    Pair(
-                        category,
-                        TrendsViewModel.TrendingStreams(region, videos)
-                    )
-                )
-            },
-            ioBlock = {
-                MediaServiceRepository.instance.getTrending(region, category)
+    fun loadSubscriptionsOnly(subscriptionsViewModel: SubscriptionsViewModel) {
+        isLoading.value = true
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val subs = tryLoadFeed(subscriptionsViewModel).shuffled()
+                subsFeed.postValue(subs)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                subsFeed.postValue(emptyList())
+            } finally {
+                isLoading.postValue(false)
             }
-        )
+        }
     }
 
-    private suspend fun loadFeed(subscriptionsViewModel: SubscriptionsViewModel) {
-        runSafely(
-            onSuccess = { videos -> feed.updateIfChanged(videos) },
-            ioBlock = { tryLoadFeed(subscriptionsViewModel) }
-        )
+    fun loadOfficialCategory(context: Context, category: TrendingCategory) {
+        isLoading.value = true
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                var videos = emptyList<StreamItem>()
+
+                if (category == TrendingCategory.DEFAULT) {
+                    // Intento 1: Buscar lo más nuevo (Variables renombradas para eliminar rastro)
+                    try {
+                        val queryNuevos = listOf("lo mas nuevo", "ultimos videos subidos", "videos virales").random()
+                        var result = try {
+                            MediaServiceRepository.instance.getSearchResults(queryNuevos, "videos")
+                        } catch (e: Exception) {
+                            MediaServiceRepository.instance.getSearchResults(queryNuevos, "")
+                        }
+                        videos = result.items.filterIsInstance<StreamItem>()
+                    } catch (e: Exception) {}
+
+                    // PARACAÍDAS: Si el buscador de Piped falla, forzamos cargar Música para no quedar en blanco
+                    if (videos.isEmpty()) {
+                        try { videos = MediaServiceRepository.instance.getTrending("US", TrendingCategory.MUSIC) } catch (e: Exception) {}
+                    }
+                } else {
+                    // Resto de categorías oficiales
+                    try {
+                        val region = PreferenceHelper.getTrendingRegion(context)
+                        videos = MediaServiceRepository.instance.getTrending(region, category)
+                    } catch (e: Exception) {}
+
+                    if (videos.isEmpty()) {
+                        try { videos = MediaServiceRepository.instance.getTrending("US", category) } catch (e: Exception) {}
+                    }
+                }
+
+                categoryFeed.postValue(videos)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                categoryFeed.postValue(emptyList())
+            } finally {
+                isLoading.postValue(false)
+            }
+        }
     }
 
-    private suspend fun loadBookmarks() {
-        runSafely(
-            onSuccess = { newBookmarks -> bookmarks.updateIfChanged(newBookmarks) },
-            ioBlock = { DatabaseHolder.Database.playlistBookmarkDao().getAll() }
-        )
-    }
+    fun loadCustomCategoryFallback(context: Context, query: String) {
+        isLoading.value = true
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                var videos = emptyList<StreamItem>()
 
-    private suspend fun loadPlaylists() {
-        runSafely(
-            onSuccess = { newPlaylists -> playlists.updateIfChanged(newPlaylists) },
-            ioBlock = { PlaylistsHelper.getPlaylists() }
-        )
-    }
+                if (query.equals("Sugerencias para ti", ignoreCase = true)) {
+                    try {
+                        val recomendacion = AlgoritmoHelper.obtenerRecomendacion(context)
 
-    private suspend fun loadVideosToContinueWatching() {
-        if (!PlayerHelper.watchHistoryEnabled) return
-        runSafely(
-            onSuccess = { videos -> continueWatching.updateIfChanged(videos) },
-            ioBlock = ::loadWatchingFromDB
-        )
-    }
+                        // CIRUGÍA: Se eliminó la etiqueta 'tendencias' de las validaciones
+                        val searchQuery = if (recomendacion.isNotBlank() && recomendacion != "Unknown" && recomendacion != "default") {
+                            recomendacion
+                        } else {
+                            "videos populares"
+                        }
 
-    private suspend fun loadWatchingFromDB(): List<StreamItem> {
-        val videos = DatabaseHelper.getWatchHistoryPage(1, 20)
+                        var result = try {
+                            MediaServiceRepository.instance.getSearchResults(searchQuery, "videos")
+                        } catch (e: Exception) {
+                            MediaServiceRepository.instance.getSearchResults(searchQuery, "")
+                        }
+                        videos = result.items.filterIsInstance<StreamItem>()
+                    } catch (e: Exception) {}
 
-        return DatabaseHelper
-            .filterUnwatched(videos.map { it.toStreamItem() })
+                    // PARACAÍDAS: Si el algoritmo falla o el servidor bloquea la búsqueda, forzamos GAMING
+                    if (videos.isEmpty()) {
+                        try { videos = MediaServiceRepository.instance.getTrending("US", TrendingCategory.GAMING) } catch (e: Exception) {}
+                    }
+
+                } else {
+                    val safeQuery = when(query) {
+                        "Música Asiática" -> listOf("asian pop music", "kpop hits", "jpop trending", "anime openings").random()
+                        "Acción y Películas" -> listOf("action movies trailers", "peliculas de accion completas", "mejores escenas de accion").random()
+                        "Estilo de Vida" -> listOf("lifestyle vlogs", "rutina de mañana vlog", "day in the life vlog").random()
+                        else -> query
+                    }
+
+                    var result = try {
+                        MediaServiceRepository.instance.getSearchResults(safeQuery, "videos")
+                    } catch (e: Exception) {
+                        MediaServiceRepository.instance.getSearchResults(safeQuery, "")
+                    }
+
+                    videos = result.items.filterIsInstance<StreamItem>()
+
+                    if (videos.isEmpty()) {
+                        val fallbackCat = if (query.contains("Música")) TrendingCategory.MUSIC else TrendingCategory.TRAILERS
+                        try { videos = MediaServiceRepository.instance.getTrending("US", fallbackCat) } catch (e: Exception) {}
+                    }
+                }
+
+                customFeed.postValue(videos.shuffled().take(25))
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                customFeed.postValue(emptyList())
+            } finally {
+                isLoading.postValue(false)
+            }
+        }
     }
 
     private suspend fun tryLoadFeed(subscriptionsViewModel: SubscriptionsViewModel): List<StreamItem> {
-        // use cached feed if available, otherwise load feed from API/database
-        val feed = subscriptionsViewModel.videoFeed.value ?: run {
-            SubscriptionHelper.getFeed(forceRefresh = false).also {
-                subscriptionsViewModel.videoFeed.postValue(it)
-            }
+        var currentFeed = subscriptionsViewModel.videoFeed.value
+        if (currentFeed.isNullOrEmpty()) {
+            currentFeed = SubscriptionHelper.getFeed(forceRefresh = true)
+            subscriptionsViewModel.videoFeed.postValue(currentFeed)
         }
-
-        return DatabaseHelper.filterByStreamTypeAndWatchPosition(feed, hideWatched, showUpcoming)
-    }
-
-    companion object {
-        private const val UNUSUAL_LOAD_TIME_MS = 10000L
-        private const val FEATURED = "featured"
-        private const val WATCHING = "watching"
-        private const val TRENDING = "trending"
-        private const val BOOKMARKS = "bookmarks"
-        private const val PLAYLISTS = "playlists"
+        return DatabaseHelper.filterByStreamTypeAndWatchPosition(currentFeed ?: emptyList(), hideWatched, showUpcoming)
     }
 }

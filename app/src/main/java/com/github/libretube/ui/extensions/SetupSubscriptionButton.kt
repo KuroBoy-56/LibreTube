@@ -7,12 +7,10 @@ import com.github.libretube.api.SubscriptionHelper
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.helpers.PreferenceHelper
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
 
 fun TextView.setupSubscriptionButton(
     channelId: String?,
@@ -50,37 +48,25 @@ fun TextView.setupSubscriptionButton(
 
     notificationBell?.setupNotificationBell(channelId)
 
-    val setSubscriptionState : (Boolean) -> Unit = { subscribe ->
-        CoroutineScope(Dispatchers.IO).launch {
-            if (subscribe)
-                SubscriptionHelper.subscribe(
-                    channelId,
-                    channelName,
-                    channelAvatar,
-                    channelVerified
-                )
-            else
-                SubscriptionHelper.unsubscribe(channelId)
-        }
-        subscribed = subscribe
-
-        updateUIStateAndNotifyObservers()
-    }
-
     setOnClickListener {
-        CoroutineScope(Dispatchers.Main).launch {
-            if (subscribed) {
-                Snackbar
-                    .make(
-                        rootView,
-                        context.getString(R.string.unsubscribe_snackbar_message, channelName),
-                        1000
+        val willSubscribe = !subscribed
+        subscribed = willSubscribe
+        updateUIStateAndNotifyObservers()
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                if (willSubscribe) {
+                    SubscriptionHelper.subscribe(
+                        channelId,
+                        channelName,
+                        channelAvatar,
+                        channelVerified
                     )
-                    .setAction(R.string.undo, {
-                        setSubscriptionState(true)
-                    }).show()
+                } else {
+                    SubscriptionHelper.unsubscribe(channelId)
+                }
+            } catch (e: Exception) {
             }
-            setSubscriptionState(!subscribed)
         }
     }
 }

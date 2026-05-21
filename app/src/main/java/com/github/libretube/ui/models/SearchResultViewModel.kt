@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.cachedIn
+import androidx.paging.filter
+import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.ui.dialogs.ShareDialog
 import com.github.libretube.ui.fragments.SearchResultFragmentArgs
 import com.github.libretube.ui.models.sources.SearchPagingSource
@@ -15,6 +17,7 @@ import com.github.libretube.util.TextUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 
 class SearchResultViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     private val args = SearchResultFragmentArgs.fromSavedStateHandle(savedStateHandle)
@@ -29,17 +32,23 @@ class SearchResultViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     val searchSuggestion = MutableLiveData<Pair<String, Boolean>?>()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val searchResultsFlow = filterMutableData.flatMapLatest {
+    val searchResultsFlow = filterMutableData.flatMapLatest { filter ->
         Pager(
             PagingConfig(pageSize = 20, enablePlaceholders = false),
             pagingSourceFactory = {
-                SearchPagingSource(searchQuery, it) { suggestion ->
+                SearchPagingSource(searchQuery, filter) { suggestion ->
                     searchSuggestion.postValue(suggestion)
                 }
             }
-        ).flow
-    }
-        .cachedIn(viewModelScope)
+        ).flow.map { pagingData ->
+            // MAGIA: Si el filtro es "Todos", eliminamos las Playlists para evitar el Error de Red
+            if (filter == "all") {
+                pagingData.filter { item -> item.type != StreamItem.TYPE_PLAYLIST }
+            } else {
+                pagingData
+            }
+        }
+    }.cachedIn(viewModelScope)
 
     fun setFilter(filter: String) {
         filterMutableData.value = filter

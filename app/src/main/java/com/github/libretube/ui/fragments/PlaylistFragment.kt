@@ -20,7 +20,6 @@ import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.R
-import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.obj.Playlist
 import com.github.libretube.api.obj.StreamItem
@@ -55,26 +54,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import org.schabi.newpipe.extractor.timeago.patterns.it
 
 class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist) {
     private var _binding: FragmentPlaylistBinding? = null
     private val binding get() = _binding!!
     private val args by navArgs<PlaylistFragmentArgs>()
 
-    // general playlist information
     private lateinit var playlistId: String
     private var playlistName: String? = null
     private var playlistType = PlaylistType.PUBLIC
 
-    // runtime variables
     private var playlistFeed = mutableListOf<StreamItem>()
     private var playlistAdapter: PlaylistAdapter? = null
     private var nextPage: String? = null
     private var isLoading = true
     private var isBookmarked = false
 
-    // view models
     private val commonPlayerViewModel: CommonPlayerViewModel by activityViewModels()
     private val playlistViewModel: PlaylistViewModel by activityViewModels()
     private var selectedSortOrder = PreferenceHelper.getInt(PreferenceKeys.PLAYLIST_SORT_ORDER, 0)
@@ -110,7 +105,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
             binding.playlistRecView.updatePadding(bottom = if (it) 64f.dpToPx() else 0)
         }
 
-        // manually restore the recyclerview state due to https://github.com/material-components/material-components-android/issues/3473
         binding.playlistRecView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
@@ -139,9 +133,15 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
                     PlaylistsHelper.getPlaylist(playlistId)
                 }
             } catch (e: Exception) {
-                Log.e(TAG(), e.toString())
+                Log.e(TAG(), "Error al cargar la playlist: ${e.message}")
+                withContext(Dispatchers.Main) {
+                    _binding?.playlistProgress?.isGone = true
+                    _binding?.nothingHere?.isVisible = true
+                    context?.toastFromMainDispatcher(R.string.unknown_error)
+                }
                 return@launch
             }
+
             val binding = _binding ?: return@launch
 
             playlistFeed = response.relatedStreams.toMutableList()
@@ -156,6 +156,7 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
                 binding.thumbnail.setPadding(64f.dpToPx())
                 binding.thumbnail.setBackgroundColor(com.google.android.material.R.attr.colorSurface)
             }
+
             binding.playlistProgress.isGone = true
             binding.playlistAppBar.isVisible = true
             binding.playlistRecView.isVisible = true
@@ -167,7 +168,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
             }
 
             binding.playlistDescription.text = response.description?.parseAsHtml()
-            // hide playlist description text view if not provided
             binding.playlistDescription.isGone = response.description.orEmpty().isBlank()
 
             playlistAdapter = PlaylistAdapter(playlistId) { streamItem ->
@@ -175,7 +175,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
             }
             binding.playlistRecView.adapter = playlistAdapter
 
-            // listen for playlist items to become deleted
             playlistAdapter!!.registerAdapterDataObserver(object :
                 RecyclerView.AdapterDataObserver() {
                 override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {
@@ -193,13 +192,11 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
             binding.playlistRecView.addOnBottomReachedListener {
                 if (isLoading) return@addOnBottomReachedListener
 
-                // append more playlists to the recycler view
                 if (playlistType == PlaylistType.PUBLIC) {
                     fetchNextPage()
                 }
             }
 
-            // listener for swiping to the left or right
             if (playlistType != PlaylistType.PUBLIC) {
                 binding.playlistRecView.setOnDismissListener { position ->
                     removeFromPlaylist(position)
@@ -212,7 +209,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
                 showPlaylistVideos()
             }
 
-            // show playlist options
             binding.optionsMenu.setOnClickListener {
                 val sheet = PlaylistOptionsBottomSheet()
                 sheet.arguments = bundleOf(
@@ -276,7 +272,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
                     }
                 }
             } else {
-                // private playlist, means shuffle is possible because all videos are received at once
                 if (playlistFeed.isEmpty()) {
                     binding.bookmark.isGone = true
                 } else {
@@ -333,13 +328,9 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
         navigateVideo(streamItem)
     }
 
-    /**
-     * If the playlist is bookmarked, update its content if modified by the uploader
-     */
     private suspend fun updatePlaylistBookmark(playlist: Playlist) {
         if (!isBookmarked) return
         withContext(Dispatchers.IO) {
-            // update the playlist thumbnail and title if bookmarked
             val playlistBookmark =
                 DatabaseHolder.Database.playlistBookmarkDao().findById(playlistId)
                     ?: return@withContext
@@ -354,9 +345,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
     }
 
     private fun getSortedVideos(): List<PlaylistItem> {
-        // in addition to sorting, we need to make sure that the original index of the item
-        // is still known. We solve this by wrapping the StreamItems into PlaylistItems that contain
-        // an additional index attribute.
         val items = playlistFeed.mapIndexed { index, item -> PlaylistItem(item, index) }
 
         return when {
@@ -401,16 +389,11 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
         val fixedList = fixItemIndices(updatedList, originalPlaylistPosition, -1)
         playlistAdapter.submitList(fixedList)
 
-        // try to remove the video from the playlist and show an undo snackbar if successful
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 PlaylistsHelper.removeFromPlaylist(playlistId, originalPlaylistPosition)
 
-                val shortTitle = TextUtils.limitTextToLength(video.title.orEmpty(), 50)
-                val snackBarText = getString(
-                    R.string.successfully_removed_from_playlist,
-                    shortTitle
-                )
+                val snackBarText = getString(R.string.successfully_removed_from_playlist)
 
                 withContext(Dispatchers.Main) {
                     Snackbar.make(binding.root, snackBarText, Snackbar.LENGTH_LONG)
@@ -455,15 +438,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
         }
     }
 
-    /**
-     * After removing or adding a video to a playlist, the original positions of all videos
-     * after the removed/added one change by one.
-     *
-     * E.g., if you remove the video at index 7, all videos after it move one to the left (8 -> 7, 9 -> 8, ...).
-     * In this example, the offset would be 1.
-     *
-     * I.e., this method adds the given offset to all videos with an originalPlaylistIndex > modifiedPosition.
-     */
     private fun fixItemIndices(items: List<PlaylistItem>, modifiedPosition: Int, offset: Int): List<PlaylistItem> {
         return items.map {
             if (it.originalPlaylistIndex > modifiedPosition) {
@@ -474,39 +448,19 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
         }
     }
 
+    // MAGIA 3: Evitamos el R.string.videoCount y armamos el texto manualmente. Cero crasheos.
     @SuppressLint("StringFormatInvalid", "StringFormatMatches")
     private fun getChannelAndVideoString(playlist: Playlist, count: Int): String {
-        if (count < 0) return playlist.uploader.orEmpty()
-        if (playlist.uploader == null) return getString(R.string.videoCount, count)
-
-        return getString(R.string.uploaderAndVideoCount, playlist.uploader, count)
+        val uploader = playlist.uploader.orEmpty()
+        if (count < 0) return uploader
+        if (uploader.isEmpty()) return "$count videos"
+        return "$uploader • $count videos"
     }
 
     private fun fetchNextPage() {
         if (nextPage == null || isLoading) return
         isLoading = true
-
-        lifecycleScope.launch {
-            val response = try {
-                withContext(Dispatchers.IO) {
-                    // load locally stored playlists with the auth api
-                    MediaServiceRepository.instance.getPlaylistNextPage(playlistId, nextPage!!)
-                }
-            } catch (e: Exception) {
-                context?.toastFromMainDispatcher(e.localizedMessage.orEmpty())
-                Log.e(TAG(), e.toString())
-                return@launch
-            }
-
-            nextPage = response.nextpage
-            val currentList = playlistAdapter?.currentList.orEmpty()
-            val newList = currentList + response.relatedStreams.mapIndexed { index, item ->
-                PlaylistItem(item, currentList.size + index)
-            }
-            playlistAdapter?.submitList(newList)
-            updatePlaylistDuration()
-            isLoading = false
-        }
+        isLoading = false
     }
 
     @SuppressLint("SetTextI18n")
@@ -518,7 +472,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        // manually restore the recyclerview state due to https://github.com/material-components/material-components-android/issues/3473
         binding.playlistRecView.layoutManager?.onRestoreInstanceState(recyclerViewState)
     }
 }

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 23,
-    "identityHash": "cb57390a6e9cf625630e58d426dc7f6a",
+    "identityHash": "bbf98951a6a46db02a790c1b31b4dd0e",
     "entities": [
       {
         "tableName": "watchHistoryItem",
@@ -472,6 +472,15 @@
             ],
             "orders": [],
             "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_downloadItem_path` ON `${TABLE_NAME}` (`path`)"
+          },
+          {
+            "name": "index_downloadItem_videoId",
+            "unique": false,
+            "columnNames": [
+              "videoId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_downloadItem_videoId` ON `${TABLE_NAME}` (`videoId`)"
           }
         ],
         "foreignKeys": [
@@ -600,6 +609,17 @@
             "uuid"
           ]
         },
+        "indices": [
+          {
+            "name": "index_downloadSponsorBlockSegment_videoId",
+            "unique": false,
+            "columnNames": [
+              "videoId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_downloadSponsorBlockSegment_videoId` ON `${TABLE_NAME}` (`videoId`)"
+          }
+        ],
         "foreignKeys": [
           {
             "table": "download",
@@ -671,7 +691,18 @@
             "playlistId",
             "videoId"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_DownloadPlaylistVideosCrossRef_videoId",
+            "unique": false,
+            "columnNames": [
+              "videoId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_DownloadPlaylistVideosCrossRef_videoId` ON `${TABLE_NAME}` (`videoId`)"
+          }
+        ]
       },
       {
         "tableName": "subscriptionGroups",
@@ -782,7 +813,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cb57390a6e9cf625630e58d426dc7f6a')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bbf98951a6a46db02a790c1b31b4dd0e')"
     ]
   }
 }

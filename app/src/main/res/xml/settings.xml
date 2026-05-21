@@ -11,6 +11,7 @@
     <Preference
         android:icon="@drawable/ic_server"
         app:key="instance"
+        app:isPreferenceVisible="false"
         app:summary="@string/instance_summary"
         app:title="@string/instance" />
 
@@ -61,6 +62,7 @@
         <Preference
             android:icon="@drawable/ic_update"
             app:key="update"
+            app:isPreferenceVisible="false"
             app:summary="@string/version"
             app:title="@string/update_summary" />
 

@@ -12,7 +12,7 @@ import com.github.libretube.api.obj.ContentItem
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.constants.IntentData
 import com.github.libretube.databinding.ChannelRowBinding
-import com.github.libretube.databinding.PlaylistsRowBinding
+import com.github.libretube.databinding.PlaylistListRowItemBinding
 import com.github.libretube.databinding.VideoRowBinding
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.enums.PlaylistType
@@ -41,7 +41,7 @@ import kotlinx.serialization.encodeToString
 class SearchResultsAdapter(
     private val timeStamp: Long = 0
 ) : PagingDataAdapter<ContentItem, SearchViewHolder>(
-    DiffUtilItemCallback(
+    DiffUtilItemCallback<ContentItem>(
         areItemsTheSame = { oldItem, newItem -> oldItem.url == newItem.url },
         areContentsTheSame = { _, _ -> true },
     )
@@ -50,18 +50,9 @@ class SearchResultsAdapter(
         val layoutInflater = LayoutInflater.from(parent.context)
 
         return when (viewType) {
-            0 -> SearchViewHolder(
-                VideoRowBinding.inflate(layoutInflater, parent, false)
-            )
-
-            1 -> SearchViewHolder(
-                ChannelRowBinding.inflate(layoutInflater, parent, false)
-            )
-
-            2 -> SearchViewHolder(
-                PlaylistsRowBinding.inflate(layoutInflater, parent, false)
-            )
-
+            0 -> SearchViewHolder(VideoRowBinding.inflate(layoutInflater, parent, false))
+            1 -> SearchViewHolder(ChannelRowBinding.inflate(layoutInflater, parent, false))
+            2 -> SearchViewHolder(PlaylistListRowItemBinding.inflate(layoutInflater, parent, false))
             else -> throw IllegalArgumentException("Invalid type")
         }
     }
@@ -95,13 +86,14 @@ class SearchResultsAdapter(
         binding.apply {
             ImageHelper.loadImage(item.thumbnail, thumbnail)
 
+            thumbnailDurationCard.isVisible = true
             thumbnailDuration.setFormattedDuration(item.duration, item.isShort, item.uploaded)
             videoTitle.text = item.title
 
             videoInfo.text = TextUtils.formatViewsString(root.context, item.views, item.uploaded)
             videoInfo.isVisible = !videoInfo.text.isNullOrEmpty()
 
-            channelContainer.isGone = item.uploaderAvatar.isNullOrEmpty()
+            channelImageContainer.isGone = item.uploaderAvatar.isNullOrEmpty()
             channelName.text = item.uploaderName
             ImageHelper.loadImage(item.uploaderAvatar, channelImage, true)
 
@@ -123,7 +115,7 @@ class SearchResultsAdapter(
                 val contentItemString = JsonHelper.json.encodeToString(item)
                 val streamItem: StreamItem = JsonHelper.json.decodeFromString(contentItemString)
                 sheet.arguments = bundleOf(IntentData.streamItem to streamItem)
-                sheet.show(fragmentManager, SearchResultsAdapter::class.java.name)
+                sheet.show(fragmentManager, VideoOptionsBottomSheet::class.java.name)
                 true
             }
             channelContainer.setOnClickListener {
@@ -132,9 +124,7 @@ class SearchResultsAdapter(
             watchProgress.setWatchProgressLength(videoId, item.duration)
 
             CoroutineScope(Dispatchers.IO).launch {
-                val isDownloaded =
-                    DatabaseHolder.Database.downloadDao().exists(videoId)
-
+                val isDownloaded = DatabaseHolder.Database.downloadDao().exists(videoId)
                 withContext(Dispatchers.Main) {
                     downloadBadge.isVisible = isDownloaded
                 }
@@ -157,15 +147,9 @@ class SearchResultsAdapter(
             searchChannelName.text = item.name
 
             val subscribers = item.subscribers.formatShort()
-            searchViews.text = if (item.subscribers >= 0 && item.videos >= 0) {
-                root.context.getString(R.string.subscriberAndVideoCounts, subscribers, item.videos)
-            } else if (item.subscribers >= 0) {
-                root.context.getString(R.string.subscribers, subscribers)
-            } else if (item.videos >= 0) {
-                root.context.getString(R.string.videoCount, item.videos)
-            } else {
-                ""
-            }
+            val subText = if (item.subscribers >= 0) "$subscribers subs" else ""
+            val vidText = if (item.videos >= 0) "${item.videos} videos" else ""
+            searchViews.text = listOf(subText, vidText).filter { it.isNotEmpty() }.joinToString(" • ")
 
             root.setOnClickListener {
                 NavigationHelper.navigateChannel(root.context, item.url)
@@ -188,23 +172,31 @@ class SearchResultsAdapter(
                     IntentData.channelName to item.name,
                     IntentData.isSubscribed to subscribed
                 )
-                channelOptionsSheet.show((root.context as BaseActivity).supportFragmentManager)
+                channelOptionsSheet.show((root.context as BaseActivity).supportFragmentManager, ChannelOptionsBottomSheet::class.java.name)
                 true
             }
         }
     }
 
-    private fun bindPlaylist(item: ContentItem, binding: PlaylistsRowBinding) {
+    private fun bindPlaylist(item: ContentItem, binding: PlaylistListRowItemBinding) {
         binding.apply {
             ImageHelper.loadImage(item.thumbnail, playlistThumbnail)
             if (item.videos >= 0) videoCount.text = item.videos.toString()
             playlistTitle.text = item.name
             playlistDescription.text = item.uploaderName
+
             root.setOnClickListener {
-                NavigationHelper.navigatePlaylist(root.context, item.url, PlaylistType.PUBLIC)
+                // EXTRACCIÓN PURA: Sacamos única y exclusivamente el ID, sin el enlace https
+                val rawUrl = item.url
+                val listId = if (rawUrl.contains("list=")) {
+                    rawUrl.substringAfter("list=").substringBefore("&")
+                } else {
+                    rawUrl.toID()
+                }
+                NavigationHelper.navigatePlaylist(root.context, listId, PlaylistType.PUBLIC)
             }
 
-            root.setOnLongClickListener {
+            optionsButton.setOnClickListener {
                 val sheet = PlaylistOptionsBottomSheet()
                 sheet.arguments = bundleOf(
                     IntentData.playlistId to item.url.toID(),
@@ -215,7 +207,6 @@ class SearchResultsAdapter(
                     (root.context as BaseActivity).supportFragmentManager,
                     PlaylistOptionsBottomSheet::class.java.name
                 )
-                true
             }
         }
     }

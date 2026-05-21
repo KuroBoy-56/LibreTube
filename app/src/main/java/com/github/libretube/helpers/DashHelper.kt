@@ -10,8 +10,6 @@ import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
-// Based off of https://github.com/TeamPiped/Piped/blob/master/src/utils/DashUtils.js
-
 object DashHelper {
 
     private val builderFactory: DocumentBuilderFactory = DocumentBuilderFactory.newInstance()
@@ -25,7 +23,7 @@ object DashHelper {
         val audioLocale: String? = null
     )
 
-    fun createManifest(streams: Streams, supportsHdr: Boolean): String {
+    fun createManifest(streams: Streams): String {
         val builder = builderFactory.newDocumentBuilder()
 
         val doc = builder.newDocument()
@@ -41,17 +39,10 @@ object DashHelper {
         val adapSetInfos = ArrayList<AdapSetInfo>()
 
         for (stream in streams.videoStreams) {
-            // HDR is only supported by some new devices
-            if (!supportsHdr && stream.quality.orEmpty().uppercase().contains("HDR")) {
+            if (stream.indexEnd == null || stream.indexEnd!! <= 0) {
                 continue
             }
 
-            // ignore dual format and OTF streams
-            if (!stream.videoOnly!! || stream.indexEnd!! <= 0) {
-                continue
-            }
-
-            // only unwraps the url if the preference is set in the settings
             stream.url = ProxyHelper.rewriteUrlUsingProxyPreference(stream.url.orEmpty())
 
             val adapSetInfo = adapSetInfos.find { it.mimeType == stream.mimeType }
@@ -77,7 +68,6 @@ object DashHelper {
                 continue
             }
 
-            // only unwraps the url if the preference is set in the settings
             stream.url = ProxyHelper.rewriteUrlUsingProxyPreference(stream.url.orEmpty())
 
             adapSetInfos.add(
@@ -103,9 +93,6 @@ object DashHelper {
                 adapSetElement.setAttribute("lang", adapSet.audioLocale)
             }
 
-            // Only add the Role element if there is a track type set
-            // This allows distinction between formats marked as original on YouTube and
-            // formats without track type info set
             if (adapSet.audioTrackType != null) {
                 val roleElement = doc.createElement("Role")
                 roleElement.setAttribute("schemeIdUri", "urn:mpeg:dash:role:2011")

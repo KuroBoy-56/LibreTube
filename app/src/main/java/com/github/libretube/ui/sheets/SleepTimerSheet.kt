@@ -1,9 +1,12 @@
 package com.github.libretube.ui.sheets
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.text.format.DateUtils
+import android.util.TypedValue
 import android.view.View
 import android.widget.Toast
 import androidx.core.os.postDelayed
@@ -20,8 +23,19 @@ class SleepTimerSheet : ExpandedBottomSheet(R.layout.sleep_timer_sheet) {
     private val handler = Handler(Looper.getMainLooper())
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        _binding = SleepTimerSheetBinding.bind(view)
         super.onViewCreated(view, savedInstanceState)
+
+        (view.parent as? View)?.setBackgroundColor(Color.TRANSPARENT)
+
+        val bg = GradientDrawable()
+        val typedValue = TypedValue()
+        requireContext().theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+        bg.setColor(typedValue.data)
+        bg.cornerRadius = 40f
+        view.background = bg
+        view.clipToOutline = true
+
+        _binding = SleepTimerSheetBinding.bind(view)
 
         setupQuickSelectChips()
         updateTimeLeftText()
@@ -44,9 +58,6 @@ class SleepTimerSheet : ExpandedBottomSheet(R.layout.sleep_timer_sheet) {
         }
     }
 
-    /**
-     * Setup quick-select chips for common sleep timer durations.
-     */
     private fun setupQuickSelectChips() {
         val chipDurations = listOf(10, 20, 30, 45, 60)
 

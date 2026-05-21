@@ -9,17 +9,18 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/audio_player_container"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="?attr/colorSurfaceContainer"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="?android:attr/colorBackground"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <LinearLayout
         android:id="@+id/audio_player_main"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="@id/audio_player_container"
         app:layout_constraintEnd_toEndOf="@id/audio_player_container"
@@ -29,29 +30,17 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="20dp">
+            android:gravity="center_vertical"
+            android:paddingHorizontal="24dp"
+            android:paddingVertical="16dp">
 
             <ImageView
                 android:id="@+id/minimize_player"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:background="?selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_arrow_down" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <com.google.android.material.materialswitch.MaterialSwitch
-                style="@style/Widget.Material3.CompoundButton.MaterialSwitch"
-                android:id="@+id/autoPlay"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="5dp"
-                app:thumbIcon="@drawable/material_player_switch_thumb" />
-
+                android:src="@drawable/ic_arrow_down"
+                app:tint="?attr/colorOnSurface" />
         </LinearLayout>
 
         <FrameLayout
@@ -62,62 +51,56 @@
             <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/thumbnail"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginHorizontal="20dp"
-                android:layout_marginVertical="10dp"
-                android:adjustViewBounds="true"
-                android:scaleType="fitCenter"
-                app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Small"
+                android:layout_height="match_parent"
+                android:layout_margin="32dp"
+                android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Medium"
                 tools:src="@tools:sample/backgrounds/scenic" />
-
-            <LinearLayout
-                android:id="@+id/volumeControls"
-                android:layout_width="42dp"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:background="@drawable/controls_layout_bg"
-                android:orientation="vertical"
-                android:visibility="gone"
-                tools:ignore="RtlHardcoded">
-
-                <TextView
-                    android:id="@+id/volume_textView"
-                    style="@style/SwipeControlString"
-                    android:layout_gravity="center"
-                    app:autoSizeTextType="uniform" />
-
-                <ProgressBar
-                    android:id="@+id/volume_progressBar"
-                    style="@android:style/Widget.ProgressBar.Horizontal"
-                    android:layout_width="7dp"
-                    android:layout_height="100dp"
-                    android:layout_gravity="center"
-                    android:layout_marginVertical="4dp"
-                    android:progressDrawable="@drawable/vertical_progressbar" />
-
-                <ImageView
-                    android:id="@+id/volume_imageView"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:layout_gravity="center"
-                    android:contentDescription="@string/volume"
-                    android:src="@drawable/ic_volume_up" />
-
-            </LinearLayout>
 
             <com.google.android.material.loadingindicator.LoadingIndicator
                 android:id="@+id/progress"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center" />
+                android:layout_gravity="center"
+                app:indicatorColor="?attr/colorOnSurface" />
 
+            <LinearLayout
+                android:id="@+id/volumeControls"
+                android:layout_width="50dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/controls_layout_bg"
+                android:orientation="vertical"
+                android:visibility="gone"
+                android:paddingVertical="8dp">
+                <TextView
+                    android:id="@+id/volume_textView"
+                    style="@style/SwipeControlString"
+                    android:layout_gravity="center" />
+                <ProgressBar
+                    android:id="@+id/volume_progressBar"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="7dp"
+                    android:layout_height="120dp"
+                    android:layout_gravity="center"
+                    android:layout_marginVertical="8dp"
+                    android:progressTint="?attr/colorOnSurface"
+                    android:progressDrawable="@drawable/vertical_progressbar" />
+                <ImageView
+                    android:id="@+id/volume_imageView"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ic_volume_up"
+                    app:tint="?attr/colorOnSurface" />
+            </LinearLayout>
         </FrameLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_margin="20dp"
+            android:layout_marginHorizontal="32dp"
+            android:layout_marginTop="16dp"
             android:orientation="vertical">
 
             <TextView
@@ -125,189 +108,181 @@
                 style="@style/TextViewMarquee"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textSize="24sp" />
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="24sp"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/uploader"
                 style="@style/TextViewMarquee"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="4dp"
+                android:textColor="?android:attr/textColorSecondary"
                 android:textSize="18sp" />
-
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/prev"
-                style="?attr/materialIconButtonOutlinedStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                app:iconGravity="textStart"
-                app:icon="@drawable/ic_prev" />
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="24dp"
+            android:orientation="vertical">
 
             <com.google.android.material.slider.Slider
                 android:id="@+id/time_bar"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+                style="@style/Widget.Material3.Slider"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                app:thumbColor="?attr/colorOnSurface"
+                app:trackColorActive="?attr/colorOnSurface"
+                app:trackColorInactive="?android:attr/textColorSecondary"
+                app:trackHeight="3dp"
+                app:thumbRadius="7dp"
+                app:haloRadius="16dp"
+                app:thumbElevation="2dp"
                 app:labelBehavior="gone" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/next"
-                style="?attr/materialIconButtonOutlinedStyle"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
-                app:iconGravity="textStart"
-                app:icon="@drawable/ic_next" />
+                android:paddingHorizontal="16dp"
+                android:orientation="horizontal">
 
+                <TextView
+                    android:id="@+id/current_position"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="?android:attr/textColorSecondary"
+                    tools:text="00:00" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:layout_weight="1" />
+
+                <TextView
+                    android:id="@+id/duration"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="?android:attr/textColorSecondary"
+                    tools:text="04:20" />
+            </LinearLayout>
         </LinearLayout>
 
-        <FrameLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingHorizontal="40dp">
+            android:gravity="center"
+            android:paddingVertical="16dp"
+            android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/current_position"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="start|center"
-                tools:text="00:00" />
+            <ImageView
+                android:id="@+id/prev"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="16dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_prev"
+                app:tint="?attr/colorOnSurface" />
 
-            <TextView
-                android:id="@+id/duration"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end|center"
-                tools:text="10:15" />
-
-        </FrameLayout>
-
-        <com.google.android.material.button.MaterialButtonGroup
-            android:id="@+id/buttonGroup"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:spacing="0dp"
-            android:paddingVertical="30dp"
-            android:layout_marginHorizontal="50dp"
-            android:gravity="center_horizontal">
-
-            <com.google.android.material.button.MaterialButton
+            <ImageView
                 android:id="@+id/rewindBTN"
-                style="?materialIconButtonFilledStyle"
-                android:layout_width="0dp"
-                android:layout_weight="2"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:gravity="center"
-                app:iconGravity="textStart"
-                app:iconSize="40dp"
-                app:icon="@drawable/ic_rewind_md" />
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginEnd="16dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_rewind_md"
+                app:tint="?attr/colorOnSurface" />
 
-            <com.google.android.material.button.MaterialButton
+            <ImageView
                 android:id="@+id/play_pause"
-                style="?attr/materialIconButtonFilledStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="3"
-                android:gravity="center"
-                app:iconGravity="textStart"
-                app:iconSize="55dp"
-                app:icon="@drawable/ic_pause" />
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_pause"
+                app:tint="?attr/colorOnSurface" />
 
-            <com.google.android.material.button.MaterialButton
-                style="?materialIconButtonFilledStyle"
+            <ImageView
                 android:id="@+id/forwardBTN"
-                android:layout_width="0dp"
-                android:layout_weight="2"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:gravity="center"
-                app:iconGravity="textStart"
-                app:iconSize="40dp"
-                app:icon="@drawable/ic_forward_md" />
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="16dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_forward_md"
+                app:tint="?attr/colorOnSurface" />
 
-        </com.google.android.material.button.MaterialButtonGroup>
+            <ImageView
+                android:id="@+id/next"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_marginStart="16dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_next"
+                app:tint="?attr/colorOnSurface" />
+        </LinearLayout>
 
-        <FrameLayout
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:paddingHorizontal="16dp"
-            android:paddingVertical="16dp">
+            android:gravity="center"
+            android:paddingBottom="32dp"
+            android:paddingTop="8dp"
+            android:orientation="horizontal">
 
-            <com.google.android.material.button.MaterialButtonGroup
-                style="@style/Widget.Material3.MaterialButtonGroup.Connected"
-                android:layout_width="wrap_content"
-                android:layout_height="50dp"
-                android:gravity="center_horizontal"
-                android:layout_gravity="start|center_vertical">
+            <ImageView
+                android:id="@+id/open_queue"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginHorizontal="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_queue"
+                app:tint="?android:attr/textColorSecondary" />
 
-                <com.google.android.material.button.MaterialButton
-                    style="?materialIconButtonOutlinedStyle"
-                    android:id="@+id/open_queue"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:icon="@drawable/ic_queue" />
+            <ImageView
+                android:id="@+id/open_chapters"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginHorizontal="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_frame"
+                app:tint="?android:attr/textColorSecondary" />
 
-                <com.google.android.material.button.MaterialButton
-                    style="?materialIconButtonOutlinedStyle"
-                    android:id="@+id/open_chapters"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:icon="@drawable/ic_frame" />
+            <ImageView
+                android:id="@+id/sleep_timer"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginHorizontal="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_sleep"
+                app:tint="?android:attr/textColorSecondary" />
 
-                <com.google.android.material.button.MaterialButton
-                    style="?materialIconButtonOutlinedStyle"
-                    android:id="@+id/playback_options"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:icon="@drawable/ic_speed" />
-
-                <com.google.android.material.button.MaterialButton
-                    style="?materialIconButtonOutlinedStyle"
-                    android:id="@+id/sleep_timer"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:icon="@drawable/ic_sleep" />
-
-                <com.google.android.material.button.MaterialButton
-                    style="?materialIconButtonOutlinedStyle"
-                    android:id="@+id/open_video"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    app:icon="@drawable/ic_video" />
-
-            </com.google.android.material.button.MaterialButtonGroup>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/show_more"
-                style="?attr/materialIconButtonFilledStyle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                app:iconGravity="textStart"
-                android:layout_gravity="end|center_vertical"
-                app:icon="@drawable/ic_three_dots" />
-
-        </FrameLayout>
-
+            <ImageView
+                android:id="@+id/add_to_playlist"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginHorizontal="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="12dp"
+                android:src="@drawable/ic_add"
+                app:tint="?android:attr/textColorSecondary" />
+        </LinearLayout>
     </LinearLayout>
 
     <LinearLayout
         android:id="@+id/miniPlayerControls"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="54dp"
         android:alpha="0"
         android:visibility="gone"
+        android:background="?android:attr/colorBackground"
         app:layout_constraintBottom_toBottomOf="@id/audio_player_container"
         app:layout_constraintEnd_toEndOf="@id/audio_player_container"
         app:layout_constraintStart_toStartOf="@id/audio_player_container"
@@ -329,26 +304,27 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:paddingHorizontal="8dp"
-            android:paddingVertical="15dp" />
+            android:paddingVertical="15dp"
+            android:textColor="?attr/colorOnSurface" />
 
         <ImageView
             android:id="@+id/miniPlayerPause"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_gravity="center"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:padding="8dp"
-            android:src="@drawable/ic_pause" />
+            android:padding="12dp"
+            android:src="@drawable/ic_pause"
+            app:tint="?attr/colorOnSurface" />
 
         <ImageView
             android:id="@+id/miniPlayerClose"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_gravity="center"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:padding="8dp"
-            android:src="@drawable/ic_close" />
-
+            android:padding="12dp"
+            android:src="@drawable/ic_close"
+            app:tint="?attr/colorOnSurface" />
     </LinearLayout>
-
 </com.github.libretube.ui.views.SingleViewTouchableMotionLayout>

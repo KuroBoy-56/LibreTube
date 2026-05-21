@@ -47,7 +47,8 @@ object IntentHelper {
         } else {
             IntentChooserSheet()
                 .apply { arguments = bundleOf(IntentData.url to link) }
-                .show(fragmentManager)
+                // MAGIA: Agregamos la etiqueta de la ventana para cumplir la regla de DialogFragment
+                .show(fragmentManager, IntentChooserSheet::class.java.name)
         }
     }
 

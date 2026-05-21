@@ -1,6 +1,7 @@
 package com.github.libretube.api
 
 import android.util.Base64
+import android.util.Log
 import com.github.libretube.api.obj.Channel
 import com.github.libretube.api.obj.ChannelTab
 import com.github.libretube.api.obj.ChannelTabResponse
@@ -51,6 +52,9 @@ import org.schabi.newpipe.extractor.stream.ContentAvailability
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.schabi.newpipe.extractor.stream.VideoStream
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 import kotlin.time.toKotlinInstant
 
 
@@ -59,8 +63,7 @@ private fun VideoStream.toPipedStream() = PipedStream(
     codec = codec,
     format = format?.toString(),
     height = height,
-    width = width,
-    quality = getResolution(),
+    width = width, quality = getResolution(),
     mimeType = format?.mimeType,
     bitrate = bitrate,
     initStart = initStart,
@@ -172,8 +175,7 @@ fun ChannelInfo.toChannel() = Channel(
     verified = isVerified,
     avatarUrl = avatars.maxByOrNull { it.height }?.url,
     bannerUrl = banners.maxByOrNull { it.height }?.url,
-    tabs = tabs.filterNot { it.contentFilters.contains(ChannelTabs.VIDEOS) }
-        .map { ChannelTab(it.contentFilters.first().lowercase(), it.toTabDataString()) },
+    tabs = tabs.map { ChannelTab(it.contentFilters.first().lowercase(), it.toTabDataString()) },
     subscriberCount = subscriberCount
 )
 
@@ -252,6 +254,7 @@ class NewPipeMediaServiceRepository : MediaServiceRepository {
     // see https://github.com/TeamNewPipe/NewPipeExtractor/tree/dev/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube/extractors/kiosk
     private val trendingCategories = TrendingCategory.entries.associate {
         when (it) {
+            TrendingCategory.DEFAULT -> it to "trending"
             TrendingCategory.GAMING -> it to "trending_gaming"
             TrendingCategory.TRAILERS -> it to "trending_movies_and_shows"
             TrendingCategory.PODCASTS -> it to "trending_podcasts_episodes"
@@ -428,6 +431,10 @@ class NewPipeMediaServiceRepository : MediaServiceRepository {
     }
 
     override suspend fun getChannel(channelId: String): Channel {
+        // SOLUCIÓN DEFINITIVA: Intentar con yt-dlp instance primero
+        val ytDlpResult = fetchChannelFromYtDlp(channelId)
+        if (ytDlpResult != null) return ytDlpResult
+
         val channelUrl = "$YOUTUBE_FRONTEND_URL/channel/${channelId}"
         val channelInfo = ChannelInfo.getInfo(NewPipeExtractorInstance.extractor, channelUrl)
 
@@ -438,6 +445,50 @@ class NewPipeMediaServiceRepository : MediaServiceRepository {
         channel.nextpage = relatedVideos.second
 
         return channel
+    }
+
+    private suspend fun fetchChannelFromYtDlp(channelId: String): Channel? = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://yt-dlp-instance.onrender.com/channel/$channelId"
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 8000
+            if (conn.responseCode == 200) {
+                val response = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(response)
+                
+                val streams = mutableListOf<StreamItem>()
+                val videosArray = json.optJSONArray("videos")
+                if (videosArray != null) {
+                    for (i in 0 until videosArray.length()) {
+                        val v = videosArray.getJSONObject(i)
+                        streams.add(StreamItem(
+                            url = v.optString("id"),
+                            title = v.optString("title"),
+                            thumbnail = v.optString("thumbnail"),
+                            uploaderName = json.optString("name"),
+                            uploaderUrl = channelId,
+                            duration = v.optLong("duration"),
+                            uploaded = v.optLong("timestamp") * 1000,
+                            type = TYPE_STREAM
+                        ))
+                    }
+                }
+                
+                return@withContext Channel(
+                    id = channelId,
+                    name = json.optString("name"),
+                    avatarUrl = json.optString("avatar"),
+                    bannerUrl = json.optString("banner"),
+                    subscriberCount = json.optLong("subscribers"),
+                    relatedStreams = streams,
+                    tabs = listOf(ChannelTab("videos", ""))
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("NewPipeMediaService", "yt-dlp error: ${e.message}")
+        }
+        return@withContext null
     }
 
     override suspend fun getChannelTab(data: String, nextPage: String?): ChannelTabResponse {

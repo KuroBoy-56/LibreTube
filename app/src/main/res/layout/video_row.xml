@@ -2,20 +2,23 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    style="@style/ItemRow">
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingVertical="8dp"
+    android:paddingHorizontal="16dp"
+    android:background="?attr/selectableItemBackground">
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/guideline"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        app:layout_constraintGuide_percent=".45" />
+        app:layout_constraintGuide_percent="0.45" />
 
-    <androidx.cardview.widget.CardView
+    <FrameLayout
         android:id="@+id/thumbnail_card"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        app:cardCornerRadius="8dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintDimensionRatio="16:9"
         app:layout_constraintEnd_toStartOf="@+id/guideline"
@@ -24,61 +27,25 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.0">
 
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/thumbnail"
             android:layout_width="match_parent"
-            android:layout_height="match_parent">
-
-            <ImageView
-                android:id="@+id/thumbnail"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                tools:srcCompat="@tools:sample/backgrounds/scenic" />
-
-            <androidx.cardview.widget.CardView
-                android:id="@+id/thumbnail_duration_card"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end"
-                android:layout_marginEnd="5dp"
-                android:layout_marginBottom="5dp"
-                app:cardBackgroundColor="@color/duration_background_color"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="0dp"
-                app:layout_constraintBottom_toTopOf="@id/watch_progress"
-                app:layout_constraintEnd_toEndOf="parent">
-
-                <TextView
-                    android:id="@+id/thumbnail_duration"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="2dp"
-                    android:textColor="@color/duration_text_color"
-                    android:textSize="11sp"
-                    tools:text="05:36" />
-
-            </androidx.cardview.widget.CardView>
-
-            <View
-                android:id="@+id/watch_progress"
-                style="@style/WatchProgress"
-                app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintStart_toStartOf="parent" />
-        </androidx.constraintlayout.widget.ConstraintLayout>
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.Corner.Small"
+            tools:srcCompat="@tools:sample/backgrounds/scenic" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/downloadOverlay"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#BF000000"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
+            android:background="@drawable/download_overlay_bg"
             android:visibility="gone">
 
             <ProgressBar
                 android:id="@+id/progressBar"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:indeterminateOnly="false"
                 android:progressDrawable="@drawable/circular_progress"
                 app:layout_constraintBottom_toBottomOf="parent"
@@ -91,32 +58,68 @@
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_download"
+                app:tint="@android:color/white"
                 app:layout_constraintBottom_toBottomOf="@id/progressBar"
                 app:layout_constraintLeft_toLeftOf="@id/progressBar"
                 app:layout_constraintRight_toRightOf="@id/progressBar"
                 app:layout_constraintTop_toTopOf="@id/progressBar" />
         </androidx.constraintlayout.widget.ConstraintLayout>
+    </FrameLayout>
 
+    <androidx.cardview.widget.CardView
+        android:id="@+id/thumbnail_duration_card"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="6dp"
+        android:layout_marginBottom="6dp"
+        app:cardBackgroundColor="@android:color/transparent"
+        app:cardElevation="0dp"
+        app:layout_constraintBottom_toBottomOf="@id/thumbnail_card"
+        app:layout_constraintEnd_toEndOf="@id/thumbnail_card">
+
+        <TextView
+            android:id="@+id/thumbnail_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/duration_pill_bg"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:textColor="@android:color/white"
+            android:textSize="11sp"
+            tools:text="05:36" />
     </androidx.cardview.widget.CardView>
+
+    <View
+        android:id="@+id/watch_progress"
+        style="@style/WatchProgress"
+        android:layout_width="0dp"
+        app:layout_constraintBottom_toBottomOf="@id/thumbnail_card"
+        app:layout_constraintStart_toStartOf="@id/thumbnail_card"
+        app:layout_constraintEnd_toEndOf="@id/thumbnail_card" />
 
     <TextView
         android:id="@+id/video_title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="12dp"
         android:ellipsize="end"
         android:maxLines="2"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="15sp"
+        android:textStyle="bold"
         android:textAlignment="viewStart"
         app:layout_constraintEnd_toStartOf="@id/download_badge"
         app:layout_constraintStart_toEndOf="@id/thumbnail_card"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Título del video" />
 
     <LinearLayout
         android:id="@+id/video_info_container"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="12dp"
         android:layout_marginTop="4dp"
+        android:orientation="horizontal"
         app:layout_constraintEnd_toEndOf="@id/download_badge"
         app:layout_constraintStart_toEndOf="@id/thumbnail_card"
         app:layout_constraintTop_toBottomOf="@id/video_title">
@@ -124,74 +127,81 @@
         <TextView
             android:id="@+id/video_info"
             android:layout_width="0dp"
-            android:layout_weight="2"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:ellipsize="end"
             android:maxLines="1"
-            android:layout_marginEnd="6dp" />
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="13sp"
+            tools:text="1M vistas • hace 2 años" />
 
         <TextView
-            android:visibility="gone"
             android:id="@+id/file_size"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="6dp"
             android:ellipsize="end"
             android:maxLines="2"
             android:textAlignment="viewEnd"
-            tools:text="55MB/2050MB"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="55MB / 2050MB"
             tools:visibility="visible" />
-
     </LinearLayout>
 
     <ImageView
         android:id="@+id/download_badge"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
         android:src="@drawable/ic_download_folder"
+        app:tint="?attr/colorPrimary"
         app:layout_constraintEnd_toEndOf="parent"
-        android:paddingStart="6dp"
         app:layout_constraintTop_toTopOf="parent"
-        tools:ignore="RtlSymmetry"
         android:visibility="gone"
         tools:visibility="visible" />
 
     <LinearLayout
         android:id="@+id/channel_container"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_gravity="start|center_vertical"
-        android:layout_marginHorizontal="8dp"
+        android:layout_marginStart="12dp"
         android:layout_marginTop="6dp"
         android:orientation="horizontal"
-        app:layout_constraintStart_toStartOf="@+id/guideline"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/thumbnail_card"
         app:layout_constraintTop_toBottomOf="@id/video_info_container">
 
         <androidx.cardview.widget.CardView
             android:id="@+id/channel_image_container"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="13.5dp"
-            android:layout_gravity="center"
-            android:layout_marginEnd="10dp">
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="8dp"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@android:color/transparent">
 
             <ImageView
                 android:id="@+id/channel_image"
-                android:layout_width="27dp"
-                android:layout_height="27dp" />
-
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop" />
         </androidx.cardview.widget.CardView>
 
         <TextView
             android:id="@+id/channel_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
+            android:layout_gravity="center_vertical"
             android:ellipsize="end"
-            tools:text="Uploader name"
-            android:maxLines="1" />
-
+            android:maxLines="1"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="13sp"
+            tools:text="Uploader name" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

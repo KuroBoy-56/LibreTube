@@ -320,8 +320,10 @@
                 android:layout_height="match_parent"
                 android:paddingTop="6dp"
                 app:bar_height="2dp"
-                app:played_color="?attr/colorSecondary"
-                app:scrubber_color="?attr/colorSecondary"
+                app:played_color="#FF0000"
+                app:scrubber_color="#FF0000"
+                app:buffered_color="#55FFFFFF"
+                app:unplayed_color="#22FFFFFF"
                 app:scrubber_dragged_size="16dp"
                 app:scrubber_enabled_size="12dp"
                 app:touch_target_height="35dp" />

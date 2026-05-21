@@ -7,6 +7,7 @@ import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.ListAdapter
 import com.github.libretube.R
+import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.constants.IntentData
 import com.github.libretube.databinding.PlaylistsRowBinding
 import com.github.libretube.db.DatabaseHolder
@@ -36,10 +37,11 @@ class PlaylistBookmarkAdapter: ListAdapter<PlaylistBookmark, PlaylistBookmarkVie
 
     private fun showPlaylistOptions(context: Context, bookmark: PlaylistBookmark) {
         val sheet = PlaylistOptionsBottomSheet()
+        val type = PlaylistsHelper.getPlaylistType(bookmark.playlistId)
         sheet.arguments = bundleOf(
             IntentData.playlistId to bookmark.playlistId,
             IntentData.playlistName to bookmark.playlistName,
-            IntentData.playlistType to PlaylistType.PUBLIC
+            IntentData.playlistType to type
         )
         sheet.show(
             (context as BaseActivity).supportFragmentManager
@@ -72,13 +74,23 @@ class PlaylistBookmarkAdapter: ListAdapter<PlaylistBookmark, PlaylistBookmarkVie
                 }
             }
             bookmarkPlaylist.isVisible = true
+            bookmarkPlaylist.setImageResource(R.drawable.ic_bookmark)
 
             root.setOnClickListener {
-                NavigationHelper.navigatePlaylist(
-                    root.context,
-                    bookmark.playlistId,
-                    PlaylistType.PUBLIC
-                )
+                val type = PlaylistsHelper.getPlaylistType(bookmark.playlistId)
+                if (type == PlaylistType.PUBLIC && !bookmark.playlistId.startsWith("PL") && !bookmark.playlistId.startsWith("UU")) {
+                    // Es un video individual guardado como bookmark
+                    NavigationHelper.navigateVideo(
+                        root.context,
+                        com.github.libretube.parcelable.PlayerData(bookmark.playlistId)
+                    )
+                } else {
+                    NavigationHelper.navigatePlaylist(
+                        root.context,
+                        bookmark.playlistId,
+                        type
+                    )
+                }
             }
 
             root.setOnLongClickListener {

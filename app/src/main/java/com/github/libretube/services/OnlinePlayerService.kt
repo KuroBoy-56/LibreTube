@@ -8,6 +8,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaItem.SubtitleConfiguration
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -62,7 +63,21 @@ open class OnlinePlayerService : AbstractPlayerService() {
      */
     private var fetchVideoInfoJob: Job? = null
 
+    private var retryCount = 0
+
     private val playerListener = object : Player.Listener {
+        override fun onPlayerError(error: PlaybackException) {
+            if (retryCount < 2) {
+                retryCount++
+                Log.w(TAG(), "Player error: ${error.errorCodeName}. Retrying ($retryCount/2)...")
+                scope.launch {
+                    startPlayback()
+                }
+            } else {
+                toastFromMainThread(error.localizedMessage ?: "Unknown error")
+            }
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             when (playbackState) {
                 Player.STATE_ENDED -> {
@@ -213,6 +228,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
     override fun navigateVideo(videoId: String) {
         this.streams = null
+        this.retryCount = 0
 
         super.navigateVideo(videoId)
     }

@@ -27,7 +27,8 @@
             motion:dragScale="6"
             motion:maxAcceleration="40"
             motion:touchAnchorId="@+id/main_container"
-            motion:touchAnchorSide="bottom" />
+            motion:touchAnchorSide="bottom"
+            motion:touchRegionId="@id/main_container" />
     </Transition>
 
     <ConstraintSet android:id="@+id/start">

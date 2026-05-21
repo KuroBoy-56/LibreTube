@@ -3,23 +3,21 @@ package com.github.libretube.ui.adapters
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.core.net.toUri
 import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.R
-import com.github.libretube.databinding.PlaylistsRowBinding
+import com.github.libretube.databinding.PlaylistListRowItemBinding
 import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.db.obj.DownloadPlaylistWithDownload
 import com.github.libretube.helpers.DownloadHelper
 import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.ui.adapters.callbacks.DiffUtilItemCallback
+import com.github.libretube.ui.viewholders.DownloadPlaylistViewHolder
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-class DownloadPlaylistViewHolder(val binding: PlaylistsRowBinding) :
-    RecyclerView.ViewHolder(binding.root)
 
 class DownloadPlaylistAdapter(
     val navigateToPlaylist: (playlist: DownloadPlaylistWithDownload) -> Unit
@@ -34,7 +32,7 @@ class DownloadPlaylistAdapter(
         viewType: Int
     ): DownloadPlaylistViewHolder {
         val layoutInflater = LayoutInflater.from(parent.context)
-        val binding = PlaylistsRowBinding.inflate(layoutInflater, parent, false)
+        val binding = PlaylistListRowItemBinding.inflate(layoutInflater, parent, false)
         return DownloadPlaylistViewHolder(binding)
     }
 
@@ -42,9 +40,9 @@ class DownloadPlaylistAdapter(
         holder: DownloadPlaylistViewHolder,
         position: Int
     ) {
-        val item = getItem(position)!!
+        val item = getItem(holder.bindingAdapterPosition)
 
-        with(holder.binding) {
+        holder.binding.apply {
             playlistTitle.text = item.downloadPlaylist.title
             playlistDescription.text = item.downloadPlaylist.description
             ImageHelper.loadImage(
@@ -53,7 +51,7 @@ class DownloadPlaylistAdapter(
             )
             videoCount.text = item.downloadVideos.size.toString()
 
-            root.setOnClickListener {
+            rootLayout.setOnClickListener {
                 navigateToPlaylist(item)
             }
         }

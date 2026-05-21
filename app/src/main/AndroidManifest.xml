@@ -111,6 +111,20 @@
         </activity>
 
         <activity
+            android:name=".ui.activities.SplashActivity"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <activity
+            android:name=".helpers.CoreInitActivity"
+            android:configChanges="keyboard|keyboardHidden|screenSize|smallestScreenSize|screenLayout|orientation|uiMode"
+            android:exported="false"
+            android:screenOrientation="locked"
+            android:theme="@style/SplashScreenTheme"
+            android:windowSoftInputMode="adjustPan" />
+
+        <activity
             android:name=".ui.activities.MainActivity"
             android:configChanges="keyboard|keyboardHidden|screenSize|smallestScreenSize|screenLayout|orientation|uiMode"
             android:exported="true"
@@ -119,7 +133,6 @@
             android:supportsPictureInPicture="true"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
-            <!-- allow being recognized as a music player -->
             <intent-filter>
                 <action android:name="android.intent.action.MUSIC_PLAYER" />
                 <category android:name="android.intent.category.CATEGORY_APP_MUSIC" />
@@ -134,12 +147,11 @@
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
@@ -153,16 +165,14 @@
             android:icon="@mipmap/ic_gradient"
             android:roundIcon="@mipmap/ic_gradient_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity-alias
@@ -173,16 +183,14 @@
             android:icon="@mipmap/ic_launcher_light"
             android:roundIcon="@mipmap/ic_launcher_light_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity-alias
@@ -193,16 +201,14 @@
             android:icon="@mipmap/ic_fire"
             android:roundIcon="@mipmap/ic_fire_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity-alias
@@ -213,16 +219,14 @@
             android:icon="@mipmap/ic_flame"
             android:roundIcon="@mipmap/ic_flame_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity-alias
@@ -233,14 +237,13 @@
             android:icon="@mipmap/ic_shaped"
             android:roundIcon="@mipmap/ic_shaped_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity-alias
@@ -251,16 +254,14 @@
             android:icon="@mipmap/ic_torch"
             android:roundIcon="@mipmap/ic_torch_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity-alias
@@ -271,16 +272,14 @@
             android:icon="@mipmap/ic_legacy"
             android:roundIcon="@mipmap/ic_legacy_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity-alias
@@ -291,16 +290,14 @@
             android:icon="@mipmap/ic_bird"
             android:roundIcon="@mipmap/ic_bird_round"
             android:supportsPictureInPicture="true"
-            android:targetActivity=".ui.activities.MainActivity"
+            android:targetActivity=".ui.activities.SplashActivity"
             android:theme="@style/SplashScreenTheme"
             android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
-
         </activity-alias>
 
         <activity
@@ -314,13 +311,10 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
-            <!-- YouTube -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="youtube.com" />
@@ -328,52 +322,40 @@
                 <data android:host="www.youtube.com" />
                 <data android:host="music.youtube.com" />
                 <data android:host="www.youtube-nocookie.com" />
-                <!-- video prefix -->
                 <data android:pathPrefix="/v/" />
                 <data android:pathPrefix="/embed/" />
                 <data android:pathPrefix="/watch" />
                 <data android:pathPrefix="/shorts/" />
                 <data android:pathPrefix="/live/" />
-                <!-- channel prefix -->
                 <data android:pathPrefix="/channel/" />
                 <data android:pathPrefix="/user/" />
                 <data android:pathPrefix="/c/" />
-                <!-- playlist prefix -->
                 <data android:pathPrefix="/playlist" />
-                <!-- search prefix -->
                 <data android:pathPrefix="/results" />
-                <!-- temporary playlist prefix -->
                 <data android:pathPrefix="/watch_videos" />
             </intent-filter>
 
-            <!-- Support being detected as media player -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
                 <action android:name="android.nfc.action.NDEF_DISCOVERED" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:host="youtu.be" />
                 <data android:pathPrefix="/" />
             </intent-filter>
 
-            <!-- Piped filter -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
                 <action android:name="android.nfc.action.NDEF_DISCOVERED" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-
                 <data android:scheme="http" />
                 <data android:scheme="https" />
                 <data android:pathPrefix="/" />
-
                 <data android:host="piped.drgns.space" />
                 <data android:host="piped.syncpundit.io" />
                 <data android:host="piped.video" />

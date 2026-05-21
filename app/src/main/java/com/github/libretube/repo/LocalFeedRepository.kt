@@ -10,7 +10,6 @@ import com.github.libretube.db.DatabaseHolder
 import com.github.libretube.db.obj.SubscriptionsFeedItem
 import com.github.libretube.enums.ContentFilter
 import com.github.libretube.extensions.parallelMap
-import com.github.libretube.extensions.toID
 import com.github.libretube.helpers.NewPipeExtractorInstance
 import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.ui.dialogs.ShareDialog.Companion.YOUTUBE_FRONTEND_URL
@@ -123,23 +122,16 @@ class LocalFeedRepository : FeedRepository {
         minimumDateMillis: Long
     ): Pair<Subscription?, List<StreamItem>> {
         val channelUrl = "$YOUTUBE_FRONTEND_URL/channel/${channelId}"
-        val feedInfo = FeedInfo.getInfo(channelUrl)
-        val feedInfoItems = feedInfo.relatedItems.associateBy { it.url }
+        
+        // Usar NewPipeExtractorInstance.extractor para obtener la información del canal
+        // Esto es mucho más fiable que el FeedInfo básico para canales individuales
+        val channelInfo = try {
+            org.schabi.newpipe.extractor.channel.ChannelInfo.getInfo(NewPipeExtractorInstance.extractor, channelUrl)
+        } catch (e: Exception) {
+            Log.e("LocalFeedRepository", "Error fetching channel info for $channelId", e)
+            return Pair(null, emptyList())
+        }
 
-        val mostRecentChannelVideo = feedInfo.relatedItems.maxBy {
-            it.uploadDate?.offsetDateTime()?.toInstant()?.toEpochMilli() ?: 0
-        } ?: return Pair(null, emptyList())
-
-        // check if the channel has at least one video whose upload time is newer than the maximum
-        // feed ago and which is not yet stored in the database
-        val mostRecentUploadTime =
-            mostRecentChannelVideo.uploadDate?.offsetDateTime()?.toInstant()?.toEpochMilli() ?: 0
-        val hasNewerUploads =
-            mostRecentUploadTime > minimumDateMillis && !DatabaseHolder.Database.feedDao()
-                .contains(mostRecentChannelVideo.url.toID())
-        if (!hasNewerUploads) return Pair(null, emptyList())
-
-        val channelInfo = ChannelInfo.getInfo(channelUrl)
         val channelAvatar = channelInfo.avatars.maxByOrNull { it.height }?.url
         val subscription =
             Subscription(channelId, channelInfo.name, channelAvatar, channelInfo.isVerified)
@@ -150,7 +142,7 @@ class LocalFeedRepository : FeedRepository {
 
         val related = relevantInfoTabs.parallelMap { tab ->
             runCatching {
-                ChannelTabInfo.getInfo(NewPipeExtractorInstance.extractor, tab).relatedItems
+                org.schabi.newpipe.extractor.channel.tabs.ChannelTabInfo.getInfo(NewPipeExtractorInstance.extractor, tab).relatedItems
             }.getOrElse { emptyList() }
         }.flatten().filterIsInstance<StreamInfoItem>()
             .filter {
@@ -162,13 +154,9 @@ class LocalFeedRepository : FeedRepository {
             }
 
         val streamItems = related.map { item ->
-            // avatar is not always included in these info items, thus must be taken from channel info response
-            item.toStreamItem(
-                channelAvatar,
-                // shorts fetched via the shorts tab don't have upload dates so we fall back to the feedInfo
-                feedInfoItems[item.url]
-            )
+            item.toStreamItem(channelAvatar)
         }.filter { it.uploaded > minimumDateMillis }
+
         return Pair(subscription, streamItems)
     }
 

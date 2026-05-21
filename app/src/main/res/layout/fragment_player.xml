@@ -7,11 +7,13 @@
     android:layout_height="match_parent"
     app:layoutDescription="@xml/player_scene">
 
-    <ScrollView
+    <androidx.core.widget.NestedScrollView
         android:id="@+id/player_scrollView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:background="?android:colorBackground"
+        android:overScrollMode="never"
+        android:scrollbars="none"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
@@ -30,135 +32,262 @@
                 android:layout_height="wrap_content"
                 android:animateLayoutChanges="true" />
 
+            <TextView
+                android:id="@+id/player_channelName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="12dp"
+                android:layout_marginTop="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="?attr/colorOnSurface"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                tools:text="@grupofamiliar" />
+
             <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingBottom="10dp"
+                android:clipToPadding="false"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp"
                 android:scrollbars="none">
 
                 <LinearLayout
-                    android:id="@+id/optionsLL"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="2dp">
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:id="@+id/player_channel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingEnd="8dp">
+
+                        <com.google.android.material.imageview.ShapeableImageView
+                            android:id="@+id/player_channelImage"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            app:shapeAppearance="@style/CircleImageView" />
+
+                        <TextView
+                            android:id="@+id/player_channelSubCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="13sp"
+                            tools:text="2.5M" />
+                    </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/relPlayer_share"
-                        style="@style/PlayerActionsButton"
-                        android:text="@string/share"
-                        app:icon="@drawable/ic_share" />
+                        android:id="@+id/player_subscribe"
+                        android:layout_width="wrap_content"
+                        android:layout_height="36dp"
+                        android:layout_marginEnd="12dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:text="@string/subscribe"
+                        android:textAllCaps="false"
+                        android:textColor="?attr/colorSurface"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        app:backgroundTint="?attr/colorOnSurface"
+                        app:cornerRadius="18dp" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/relPlayer_download"
-                        style="@style/PlayerActionsButton"
-                        android:text="@string/download"
-                        app:icon="@drawable/ic_download" />
+                    <LinearLayout
+                        android:id="@+id/optionsLL"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/relPlayer_save"
-                        style="@style/PlayerActionsButton"
-                        android:text="@string/save"
-                        app:icon="@drawable/ic_save" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/relPlayer_share"
+                            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="8dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:minWidth="48dp"
+                            android:paddingHorizontal="12dp"
+                            app:backgroundTint="?attr/colorSurfaceVariant"
+                            app:cornerRadius="18dp"
+                            app:icon="@drawable/ic_share"
+                            app:iconTint="?attr/colorOnSurface" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/relPlayer_background"
-                        style="@style/PlayerActionsButton"
-                        android:text="@string/audio"
-                        app:icon="@drawable/ic_headphones" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/relPlayer_save"
+                            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="8dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="@string/save"
+                            android:textAllCaps="false"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="13sp"
+                            app:backgroundTint="?attr/colorSurfaceVariant"
+                            app:cornerRadius="18dp"
+                            app:icon="@drawable/ic_save"
+                            app:iconTint="?attr/colorOnSurface" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/relPlayer_pip"
-                        style="@style/PlayerActionsButton"
-                        android:text="@string/pip"
-                        app:icon="@drawable/ic_open" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/relPlayer_bookmark"
+                            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="8dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:minWidth="48dp"
+                            android:paddingHorizontal="12dp"
+                            app:backgroundTint="?attr/colorSurfaceVariant"
+                            app:cornerRadius="18dp"
+                            app:icon="@drawable/ic_bookmark"
+                            app:iconTint="?attr/colorOnSurface" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/relPlayer_screenshot"
-                        style="@style/PlayerActionsButton"
-                        android:text="@string/screenshot"
-                        app:icon="@drawable/ic_copy" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/relPlayer_download"
+                            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="8dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="@string/download"
+                            android:textAllCaps="false"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="13sp"
+                            app:backgroundTint="?attr/colorSurfaceVariant"
+                            app:cornerRadius="18dp"
+                            app:icon="@drawable/ic_download"
+                            app:iconTint="?attr/colorOnSurface" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/relPlayer_screenshot"
+                            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="36dp"
+                            android:layout_marginEnd="8dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text="@string/screenshot"
+                            android:textAllCaps="false"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="13sp"
+                            app:backgroundTint="?attr/colorSurfaceVariant"
+                            app:cornerRadius="18dp"
+                            app:icon="@drawable/ic_copy"
+                            app:iconTint="?attr/colorOnSurface" />
+                    </LinearLayout>
                 </LinearLayout>
-
             </HorizontalScrollView>
 
-            <LinearLayout
-                android:id="@+id/player_channel"
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/comments_toggle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="2dp"
-                android:layout_marginVertical="10dp"
-                android:background="@drawable/rounded_ripple"
-                android:orientation="horizontal"
-                android:padding="5dp">
-
-                <com.google.android.material.imageview.ShapeableImageView
-                    android:id="@+id/player_channelImage"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_gravity="center"
-                    android:layout_marginEnd="4dp"
-                    app:shapeAppearance="@style/CircleImageView" />
+                android:layout_marginHorizontal="12dp"
+                android:layout_marginBottom="12dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceVariant"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
 
                 <LinearLayout
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="start|center_vertical"
-                    android:layout_marginStart="5dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:layoutDirection="locale"
-                    android:orientation="vertical">
+                    android:orientation="vertical"
+                    android:padding="12dp">
 
-                    <TextView
-                        android:id="@+id/player_channelName"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textSize="15sp" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/player_channelSubCount"
-                        android:layout_width="wrap_content"
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/comments"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/comments_count_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            tools:text="..."
+                            android:textColor="?android:attr/textColorSecondary"
+                            android:textSize="12sp" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"/>
+
+                        <ImageView
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:src="@drawable/ic_arrow_up_down"
+                            app:tint="?attr/colorOnSurface" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/comment_preview_layout"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textSize="11sp"
-                        tools:text="2.5M subscribers" />
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        tools:visibility="visible">
 
+                        <com.google.android.material.imageview.ShapeableImageView
+                            android:id="@+id/comment_author_avatar"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:background="?attr/colorOnSurface"
+                            app:shapeAppearance="@style/CircleImageView" />
+
+                        <TextView
+                            android:id="@+id/comment_preview_text"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:ellipsize="end"
+                            android:maxLines="2"
+                            tools:text="Cargando comentario..."
+                            android:textColor="?attr/colorOnSurface"
+                            android:textSize="12sp" />
+                    </LinearLayout>
                 </LinearLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/player_subscribe"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:text="@string/subscribe"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/comments_toggle"
-                style="@style/PlayerActionsButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="20dp"
-                android:layout_marginVertical="10dp"
-                android:text="@string/comments"
-                android:textAlignment="viewStart"
-                android:textColor="?colorPrimary"
-                app:drawableEndCompat="@drawable/ic_arrow_up_down"
-                app:drawableTint="?colorPrimary" />
+            </com.google.android.material.card.MaterialCardView>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/related_rec_view"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content" />
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:nestedScrollingEnabled="false"
+                android:paddingBottom="20dp" />
 
         </LinearLayout>
 
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/main_container"
@@ -172,14 +301,15 @@
 
     <com.github.libretube.ui.views.CustomExoPlayerView
         android:id="@+id/player"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:background="@android:color/black"
-        app:player_layout_id="@layout/custom_exo_player_view"
         app:controller_layout_id="@layout/exo_styled_player_control_view"
         app:layout_constraintBottom_toBottomOf="@id/main_container"
+        app:layout_constraintEnd_toEndOf="@id/main_container"
         app:layout_constraintStart_toStartOf="@id/main_container"
         app:layout_constraintTop_toTopOf="@id/main_container"
+        app:player_layout_id="@layout/custom_exo_player_view"
         app:show_buffering="when_playing"
         app:surface_type="surface_view" />
 

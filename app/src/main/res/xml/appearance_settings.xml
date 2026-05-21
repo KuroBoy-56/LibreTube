@@ -31,15 +31,19 @@
 
         <Preference
             android:icon="@drawable/ic_frame"
+            app:isPreferenceVisible="false"
             app:key="icon_change"
             app:title="@string/app_icon" />
 
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/navigation_bar">
+    <PreferenceCategory
+        app:title="@string/navigation_bar"
+        app:isPreferenceVisible="false">
 
         <Preference
             android:icon="@drawable/ic_home"
+            app:isPreferenceVisible="false"
             app:key="navbar_items"
             app:title="@string/navbar_order" />
 
@@ -48,18 +52,22 @@
             app:defaultValue="selected"
             app:entries="@array/labelVisibility"
             app:entryValues="@array/labelVisibilityValues"
+            app:isPreferenceVisible="false"
             app:key="label_visibility"
             app:title="@string/navLabelVisibility"
             app:useSimpleSummaryProvider="true" />
 
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/layout">
+    <PreferenceCategory
+        app:title="@string/layout"
+        app:isPreferenceVisible="false">
 
         <MultiSelectListPreference
             android:entries="@array/homeTabItems"
             android:entryValues="@array/homeTabItemsValues"
             android:icon="@drawable/ic_awesome"
+            app:isPreferenceVisible="false"
             android:key="home_tab_content"
             android:title="@string/home_tab_content"
             app:defaultValue="@array/homeTabItemsValues" />
@@ -69,6 +77,7 @@
             app:defaultValue="@integer/grid_items"
             app:entries="@array/grid"
             app:entryValues="@array/grid"
+            app:isPreferenceVisible="false"
             app:key="grid"
             app:title="@string/grid"
             app:useSimpleSummaryProvider="true" />
@@ -78,6 +87,7 @@
             app:defaultValue="@integer/grid_items_landscape"
             app:entries="@array/grid"
             app:entryValues="@array/grid"
+            app:isPreferenceVisible="false"
             app:key="grid_landscape"
             app:title="@string/grid_landscape"
             app:useSimpleSummaryProvider="true" />

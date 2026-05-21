@@ -5,7 +5,6 @@ import com.github.libretube.api.obj.Channel
 import com.github.libretube.api.obj.ChannelTabResponse
 import com.github.libretube.api.obj.CommentsPage
 import com.github.libretube.api.obj.DeArrowContent
-import com.github.libretube.api.obj.Message
 import com.github.libretube.api.obj.Playlist
 import com.github.libretube.api.obj.SearchResult
 import com.github.libretube.api.obj.SegmentData
@@ -13,78 +12,101 @@ import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.api.obj.Streams
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.helpers.PreferenceHelper
-import retrofit2.HttpException
+import kotlinx.serialization.encodeToString
 
 open class PipedMediaServiceRepository : MediaServiceRepository {
     override fun getTrendingCategories(): List<TrendingCategory> = emptyList()
 
-    override suspend fun getTrending(region: String, category: TrendingCategory): List<StreamItem> =
-        api.getTrending(region)
-
-    override suspend fun getStreams(videoId: String): Streams {
-        return try {
-            api.getStreams(videoId).also {
-                it.isShort = it.videoStreams.firstOrNull()?.let { stream ->
-                    (stream.height ?: 0) > (stream.width ?: 0)
-                } ?: false
+    private suspend fun <T> runWithFallback(block: suspend () -> T): T {
+        var lastException: Exception? = null
+        val maxRetries = 2 // Reducido a 2 reintentos para evitar carga infinita
+        repeat(maxRetries) { 
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+                PreferenceHelper.rotateInstance()
+                RetrofitInstance.resetApi()
             }
-        } catch (e: HttpException) {
-            val errorMessage = e.response()?.errorBody()?.string()?.runCatching {
-                JsonHelper.json.decodeFromString<Message>(this).message
-            }?.getOrNull()
+        }
+        throw lastException ?: Exception("Error en PipedMediaServiceRepository")
+    }
 
-            throw Exception(errorMessage)
+    override suspend fun getTrending(region: String, category: TrendingCategory): List<StreamItem> = runWithFallback {
+        api.getTrending(region)
+    }
+
+    override suspend fun getStreams(videoId: String): Streams = runWithFallback {
+        api.getStreams(videoId).also {
+            it.isShort = it.videoStreams.firstOrNull()?.let { stream ->
+                (stream.height ?: 0) > (stream.width ?: 0)
+            } ?: false
         }
     }
 
-    override suspend fun getComments(videoId: String): CommentsPage =
+    override suspend fun getComments(videoId: String): CommentsPage = runWithFallback {
         api.getComments(videoId)
+    }
 
     override suspend fun getSegments(
         videoId: String,
         category: List<String>,
         actionType: List<String>?
-    ): SegmentData = api.getSegments(
-        videoId,
-        JsonHelper.json.encodeToString(category),
-        JsonHelper.json.encodeToString(actionType)
-    )
+    ): SegmentData = runWithFallback {
+        api.getSegments(
+            videoId,
+            JsonHelper.json.encodeToString(category),
+            JsonHelper.json.encodeToString(actionType)
+        )
+    }
 
-    override suspend fun getDeArrowContent(videoId: String): DeArrowContent? =
+    override suspend fun getDeArrowContent(videoId: String): DeArrowContent? = runWithFallback {
         api.getDeArrowContent(videoId)[videoId]
+    }
 
-    override suspend fun getCommentsNextPage(videoId: String, nextPage: String): CommentsPage =
+    override suspend fun getCommentsNextPage(videoId: String, nextPage: String): CommentsPage = runWithFallback {
         api.getCommentsNextPage(videoId, nextPage)
+    }
 
-    override suspend fun getSearchResults(searchQuery: String, filter: String): SearchResult =
+    override suspend fun getSearchResults(searchQuery: String, filter: String): SearchResult = runWithFallback {
         api.getSearchResults(searchQuery, filter)
+    }
 
     override suspend fun getSearchResultsNextPage(
         searchQuery: String,
         filter: String,
         nextPage: String
-    ): SearchResult = api.getSearchResultsNextPage(searchQuery, filter, nextPage)
+    ): SearchResult = runWithFallback {
+        api.getSearchResultsNextPage(searchQuery, filter, nextPage)
+    }
 
-    override suspend fun getSuggestions(query: String): List<String> =
+    override suspend fun getSuggestions(query: String): List<String> = runWithFallback {
         api.getSuggestions(query)
+    }
 
-    override suspend fun getChannel(channelId: String): Channel =
+    override suspend fun getChannel(channelId: String): Channel = runWithFallback {
         api.getChannel(channelId)
+    }
 
-    override suspend fun getChannelTab(data: String, nextPage: String?): ChannelTabResponse =
+    override suspend fun getChannelTab(data: String, nextPage: String?): ChannelTabResponse = runWithFallback {
         api.getChannelTab(data, nextPage)
+    }
 
-    override suspend fun getChannelByName(channelName: String): Channel =
+    override suspend fun getChannelByName(channelName: String): Channel = runWithFallback {
         api.getChannelByName(channelName)
+    }
 
-    override suspend fun getChannelNextPage(channelId: String, nextPage: String): Channel =
+    override suspend fun getChannelNextPage(channelId: String, nextPage: String): Channel = runWithFallback {
         api.getChannelNextPage(channelId, nextPage)
+    }
 
-    override suspend fun getPlaylist(playlistId: String): Playlist =
+    override suspend fun getPlaylist(playlistId: String): Playlist = runWithFallback {
         api.getPlaylist(playlistId)
+    }
 
-    override suspend fun getPlaylistNextPage(playlistId: String, nextPage: String): Playlist =
+    override suspend fun getPlaylistNextPage(playlistId: String, nextPage: String): Playlist = runWithFallback {
         api.getPlaylistNextPage(playlistId, nextPage)
+    }
 
     companion object {
         val apiUrl get() = PreferenceHelper.getString(PreferenceKeys.FETCH_INSTANCE, PIPED_API_URL)

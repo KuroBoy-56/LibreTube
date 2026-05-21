@@ -27,18 +27,19 @@ class SubscriptionsViewModel : ViewModel() {
 
     fun fetchFeed(context: Context, forceRefresh: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            val videoFeed = try {
-                SubscriptionHelper.getFeed(forceRefresh = forceRefresh) { feedProgress ->
+            try {
+                val videoFeed = SubscriptionHelper.getFeed(forceRefresh = forceRefresh) { feedProgress ->
                     this@SubscriptionsViewModel.feedProgress.postValue(feedProgress)
                 }
+                this@SubscriptionsViewModel.videoFeed.postValue(videoFeed)
+                videoFeed.firstOrNull { !it.isUpcoming }?.uploaded?.let {
+                    PreferenceHelper.updateLastFeedWatchedTime(it, false)
+                }
             } catch (e: Exception) {
+                // Notificar error pero limpiar el estado de progreso para evitar carga infinita
+                this@SubscriptionsViewModel.feedProgress.postValue(null)
                 context.toastFromMainDispatcher(R.string.server_error)
                 Log.e(TAG(), e.toString())
-                return@launch
-            }
-            this@SubscriptionsViewModel.videoFeed.postValue(videoFeed)
-            videoFeed.firstOrNull { !it.isUpcoming }?.uploaded?.let {
-                PreferenceHelper.updateLastFeedWatchedTime(it, false)
             }
         }
     }

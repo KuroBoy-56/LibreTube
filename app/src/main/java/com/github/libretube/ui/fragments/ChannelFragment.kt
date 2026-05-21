@@ -199,6 +199,28 @@ class ChannelFragment : Fragment(R.layout.fragment_channel) {
             )
         }
 
+        channelAdapter = VideosAdapter(showChannelInfo = false).also {
+            it.submitList(response.relatedStreams)
+        }
+        tabList.clear()
+
+        // SIEMPRE agregar la pestaña de videos al inicio con los streams relacionados iniciales
+        tabList.add(ChannelTab(getString(R.string.videos), ""))
+
+        val tabs = response.tabs
+        for (channelTab in tabs) {
+            val tabName = tabNamesMap[channelTab.name]?.let { getString(it) }
+                ?: channelTab.name.replaceFirstChar(Char::titlecase)
+            
+            // Evitar duplicar la pestaña de videos si ya viene en la lista de tabs
+            if (tabName.equals(getString(R.string.videos), ignoreCase = true) || 
+                channelTab.data.contains("videos", ignoreCase = true)) {
+                continue
+            }
+            
+            tabList.add(ChannelTab(tabName, channelTab.data))
+        }
+
         channelContentAdapter = ChannelContentAdapter(
             tabList,
             response.relatedStreams,
@@ -211,18 +233,7 @@ class ChannelFragment : Fragment(R.layout.fragment_channel) {
             tab.text = tabList[position].name
         }.attach()
 
-        channelAdapter = VideosAdapter(showChannelInfo = false).also {
-            it.submitList(response.relatedStreams)
-        }
-        tabList.clear()
-
-        val tabs = listOf(ChannelTab(VIDEOS_TAB_KEY, "")) + response.tabs
-        for (channelTab in tabs) {
-            val tabName = tabNamesMap[channelTab.name]?.let { getString(it) }
-                ?: channelTab.name.replaceFirstChar(Char::titlecase)
-            tabList.add(ChannelTab(tabName, channelTab.data))
-        }
-        channelContentAdapter.notifyItemRangeChanged(0, tabList.size - 1)
+        channelContentAdapter.notifyDataSetChanged()
     }
 
     companion object {

@@ -53,6 +53,7 @@ interface MediaServiceRepository {
 }
 
 enum class TrendingCategory(@StringRes val titleRes: Int) {
+    DEFAULT(R.string.trending),
     GAMING(R.string.gaming),
     TRAILERS(R.string.trailers),
     PODCASTS(R.string.podcasts),

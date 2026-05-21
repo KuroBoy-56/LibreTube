@@ -1,33 +1,36 @@
+# =========================================================
+# REGLAS DE SEGURIDAD EXTRA (Ofuscación agresiva)
+# =========================================================
+# Renombrar clases y métodos a letras aleatorias
+-repackageclasses ''
+-allowaccessmodification
+
+# Eliminar logs en producción (Evita que vean datos por consola)
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int i(...);
+    public static int w(...);
+    public static int d(...);
+    public static int e(...);
+}
+
+# =========================================================
+# REGLAS ORIGINALES DE LIBRETUBE
+# =========================================================
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.kts.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
-
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
 -keepattributes SourceFile,LineNumberTable
 
-# prevents obfuscation in debug logs
--dontobfuscate
+# ¡CORREGIDO! Esta línea estaba matando la seguridad. La comentamos.
+# -dontobfuscate
 
 # optimise protobuf classes
 -shrinkunusedprotofields
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
-
-#uncomment for debug
-#-keepnames class **
 
 # Keep data classes used for Retrofit
 -keep class com.github.libretube.obj.** { *; }
@@ -136,3 +139,21 @@
 -dontwarn java.beans.IntrospectionException
 -dontwarn java.beans.Introspector
 -dontwarn java.beans.PropertyDescriptor
+
+# =========================================================
+# PROTECCIÓN DE TUS MODIFICACIONES (Login, Animación y Panel)
+# =========================================================
+
+# Proteger la inicialización del Splash nativo y la animación
+-keep class androidx.core.splashscreen.** { *; }
+
+# Proteger las funciones de red y seguridad de tu Login
+-keepclassmembers class com.github.libretube.helpers.CoreInitActivity {
+    *** performLogin(...);
+    *** getCustomMacAddress(...);
+}
+
+# Proteger el validador de actualizaciones de tu Main
+-keepclassmembers class com.github.libretube.ui.activities.MainActivity {
+    *** seguridad(...);
+}

@@ -7,6 +7,20 @@ import com.github.libretube.db.DatabaseHolder.Database
 import com.github.libretube.db.obj.LocalSubscription
 
 class PipedLocalSubscriptionsRepository : SubscriptionsRepository {
+    private suspend fun <T> runWithFallback(block: suspend () -> T): T {
+        var lastException: Exception? = null
+        repeat(4) {
+            try {
+                return block()
+            } catch (e: Exception) {
+                lastException = e
+                com.github.libretube.helpers.PreferenceHelper.rotateInstance()
+                RetrofitInstance.resetApi()
+            }
+        }
+        throw lastException ?: Exception("Error en PipedLocalSubscriptionsRepository")
+    }
+
     override suspend fun subscribe(
         channelId: String, name: String, uploaderAvatar: String?, verified: Boolean
     ) {
@@ -27,10 +41,10 @@ class PipedLocalSubscriptionsRepository : SubscriptionsRepository {
         Database.localSubscriptionDao().deleteById(channelId)
     }
 
-    override suspend fun getSubscriptions(): List<Subscription> {
+    override suspend fun getSubscriptions(): List<Subscription> = runWithFallback {
         val channelIds = getSubscriptionChannelIds()
 
-        return when {
+        when {
             channelIds.size > GET_SUBSCRIPTIONS_LIMIT -> RetrofitInstance.authApi.unauthenticatedSubscriptions(
                     channelIds
                 )

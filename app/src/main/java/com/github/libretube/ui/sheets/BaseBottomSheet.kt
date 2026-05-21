@@ -1,22 +1,24 @@
 package com.github.libretube.ui.sheets
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.view.ViewGroup.MarginLayoutParams
+import android.widget.TextView
 import androidx.annotation.LayoutRes
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.R
-import com.github.libretube.databinding.BottomSheetBinding
 import com.github.libretube.extensions.dpToPx
 import com.github.libretube.obj.BottomSheetItem
 import com.github.libretube.ui.adapters.BottomSheetAdapter
 import kotlinx.coroutines.launch
 import com.github.libretube.ui.extensions.onSystemInsets
-
 
 open class BaseBottomSheet(@LayoutRes layoutResId: Int = R.layout.bottom_sheet) : ExpandedBottomSheet(layoutResId) {
 
@@ -25,32 +27,47 @@ open class BaseBottomSheet(@LayoutRes layoutResId: Int = R.layout.bottom_sheet) 
     private lateinit var listener: (index: Int) -> Unit
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val binding = BottomSheetBinding.bind(view)
+        super.onViewCreated(view, savedInstanceState)
 
-        if (title != null) {
-            binding.bottomSheetTitleLayout.isVisible = true
+        // MAGIA: Hacemos transparente el contenedor nativo para que nuestra píldora "flote"
+        (view.parent as? View)?.setBackgroundColor(Color.TRANSPARENT)
 
-            binding.bottomSheetTitle.text = title
-            binding.bottomSheetTitle.textSize = titleTextSize
-            binding.bottomSheetTitle.updateLayoutParams<MarginLayoutParams> {
+        val bg = GradientDrawable()
+        val typedValue = TypedValue()
+        requireContext().theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+        bg.setColor(typedValue.data)
+        bg.cornerRadius = 40f
+        view.background = bg
+        view.clipToOutline = true
+
+        val titleLayout = view.findViewById<View>(R.id.bottom_sheet_title_layout)
+        val titleView = view.findViewById<TextView>(R.id.bottom_sheet_title)
+        val recycler = view.findViewById<RecyclerView>(R.id.options_recycler)
+
+        if (title != null && titleLayout != null && titleView != null) {
+            titleLayout.isVisible = true
+
+            titleView.text = title
+            titleView.textSize = titleTextSize
+            titleView.updateLayoutParams<MarginLayoutParams> {
                 marginStart = titleMargin
                 marginEnd = titleMargin
             }
         }
 
-        binding.optionsRecycler.layoutManager = LinearLayoutManager(requireContext())
-        binding.optionsRecycler.adapter = BottomSheetAdapter(items, listener)
+        if (recycler != null && ::items.isInitialized) {
+            recycler.layoutManager = LinearLayoutManager(requireContext())
+            recycler.adapter = BottomSheetAdapter(items, listener)
 
-        // add bottom padding to the list, to ensure that the last item is not overlapped by the system bars
-        binding.optionsRecycler.onSystemInsets { v, systemInsets ->
-            v.setPadding(
-                v.paddingLeft,
-                v.paddingTop,
-                v.paddingRight,
-                systemInsets.bottom
-            )
+            recycler.onSystemInsets { v, systemInsets ->
+                v.setPadding(
+                    v.paddingLeft,
+                    v.paddingTop,
+                    v.paddingRight,
+                    systemInsets.bottom
+                )
+            }
         }
-
     }
 
     fun setItems(items: List<BottomSheetItem>, listener: (suspend (index: Int) -> Unit)?) = apply {

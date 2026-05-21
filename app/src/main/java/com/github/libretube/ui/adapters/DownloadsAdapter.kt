@@ -34,8 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import kotlin.io.path.exists
-import kotlin.io.path.fileSize
+import java.io.File
 
 class DownloadsAdapter(
     private val context: Context,
@@ -68,7 +67,20 @@ class DownloadsAdapter(
             watchProgress.setWatchProgressLength(download.videoId, download.duration ?: 0)
 
             val downloadSize = items.sumOf { it.downloadSize }
-            val currentSize = items.filter { it.path.exists() }.sumOf { it.path.fileSize() }
+
+            // CORRECCIÓN ANTICRASH EXTREMA: Cálculo blindado para evitar el "Boom explota"
+            val currentSize = try {
+                items.sumOf { item ->
+                    try {
+                        val file = File(item.path.toString())
+                        if (file.exists()) file.length() else 0L
+                    } catch (e: Exception) {
+                        0L
+                    }
+                }
+            } catch (e: Exception) {
+                0L
+            }
 
             if (downloadSize == -1L) {
                 progressBar.isIndeterminate = true
@@ -89,6 +101,7 @@ class DownloadsAdapter(
             } else {
                 downloadOverlay.isGone = true
                 fileSize.text = totalSizeInfo
+
                 thumbnailDurationCard.isVisible = true
                 download.duration?.let {
                     thumbnailDuration.text = DateUtils.formatElapsedTime(it)
@@ -141,9 +154,6 @@ class DownloadsAdapter(
                     DELETE_DOWNLOAD_REQUEST_KEY,
                     activity
                 ) { _, _ ->
-                    // the position might have changed in the meanwhile if an other item was deleted
-                    // apparently [onBindViewHolder] is only retriggered if the item changes, but
-                    // not if the position changes (which would lead to IndexOutOfBounds here)
                     val realPosition = currentList.indexOf(downloadWithItems)
                     showDeleteDialog(root.context, realPosition)
                 }
@@ -155,7 +165,7 @@ class DownloadsAdapter(
                             IntentData.downloadTab to downloadTab
                         )
                     }
-                    .show(fragmentManager)
+                    .show(fragmentManager, DownloadOptionsBottomSheet::class.java.name)
                 true
             }
         }
@@ -203,7 +213,6 @@ class DownloadsAdapter(
     }
 
     fun restoreItem(position: Int) {
-        // moves the item back to its initial horizontal position
         notifyItemRemoved(position)
         notifyItemInserted(position)
     }

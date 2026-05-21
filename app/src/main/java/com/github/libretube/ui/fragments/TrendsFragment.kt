@@ -11,7 +11,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.github.libretube.R
@@ -29,7 +29,6 @@ import com.github.libretube.ui.base.DynamicLayoutManagerFragment
 import com.github.libretube.ui.models.TrendsViewModel
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.tabs.TabLayoutMediator
 import kotlinx.coroutines.launch
 
 class TrendsFragment : Fragment(R.layout.fragment_trends) {
@@ -39,16 +38,19 @@ class TrendsFragment : Fragment(R.layout.fragment_trends) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         _binding = FragmentTrendsBinding.bind(view)
 
-        val categories = MediaServiceRepository.instance.getTrendingCategories()
+        val allCategories = MediaServiceRepository.instance.getTrendingCategories()
+        val currentPref = PreferenceHelper.getString(
+            PreferenceKeys.TRENDING_CATEGORY,
+            TrendingCategory.MUSIC.name
+        )
+        val activeCategory = allCategories.find { it.name == currentPref } ?: allCategories.first()
+        val categories = listOf(activeCategory)
 
         val adapter = TrendsAdapter(this, categories)
         binding.pager.adapter = adapter
+        binding.pager.isUserInputEnabled = false
 
-        if (categories.size <= 1) binding.tabLayout.isGone = true
-        TabLayoutMediator(binding.tabLayout, binding.pager) { tab, position ->
-            val category = categories[position]
-            tab.text = getString(category.titleRes)
-        }.attach()
+        binding.tabLayout.isGone = true
 
         binding.trendingRegion.setOnClickListener {
             showChangeRegionDialog(requireContext()) {
@@ -116,7 +118,7 @@ class TrendsContentFragment : DynamicLayoutManagerFragment(R.layout.fragment_tre
     private val category get() = _category!!
 
     override fun setLayoutManagers(gridItems: Int) {
-        _binding?.recview?.layoutManager = GridLayoutManager(context, gridItems)
+        _binding?.recview?.layoutManager = LinearLayoutManager(requireContext())
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -168,9 +170,6 @@ class TrendsContentFragment : DynamicLayoutManagerFragment(R.layout.fragment_tre
 
         viewModel.fetchTrending(requireContext(), category)
         lifecycleScope.launch {
-            // every time the user navigates to the fragment for the selected category,
-            // fetch the trends for the selected category if they're not yet cached or if the value
-            // for trending region has been changed
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 val trendingRegion = PreferenceHelper.getTrendingRegion(requireContext())
                 val trendingVideos = viewModel.trendingVideos.value.orEmpty()[category]
@@ -183,7 +182,6 @@ class TrendsContentFragment : DynamicLayoutManagerFragment(R.layout.fragment_tre
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        // manually restore the recyclerview state due to https://github.com/material-components/material-components-android/issues/3473
         binding.recview.layoutManager?.onRestoreInstanceState(viewModel.recyclerViewState)
     }
 

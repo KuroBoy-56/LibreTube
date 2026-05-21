@@ -1,14 +1,26 @@
 package com.github.libretube.ui.activities
 
+import android.app.Dialog
+import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.widget.SearchView
@@ -40,6 +52,7 @@ import com.github.libretube.enums.ImportFormat
 import com.github.libretube.enums.SearchType
 import com.github.libretube.enums.TopLevelDestination
 import com.github.libretube.extensions.anyChildFocused
+import com.github.libretube.helpers.CoreInitActivity
 import com.github.libretube.helpers.ImportHelper
 import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.helpers.NavBarHelper
@@ -58,11 +71,16 @@ import com.github.libretube.ui.models.SearchViewModel
 import com.github.libretube.ui.models.SubscriptionsViewModel
 import com.github.libretube.ui.preferences.BackupRestoreSettings
 import com.github.libretube.ui.preferences.BackupRestoreSettings.Companion.FILETYPE_ANY
-import com.github.libretube.util.UpdateChecker
+import com.github.libretube.util.DnsResolverConfig
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 class MainActivity : AbstractPlayerHostActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -72,9 +90,12 @@ class MainActivity : AbstractPlayerHostActivity() {
 
     private val subscriptionsViewModel: SubscriptionsViewModel by viewModels()
 
-    // search related stuff
     private lateinit var searchView: SearchView
     private lateinit var searchItem: MenuItem
+
+    private var notificationsItem: MenuItem? = null
+    private var settingsItem: MenuItem? = null
+
     private var savedSearchQuery: String? = null
     private var shouldOpenSuggestions = true
     private var currentSearchType: SearchType = SearchType.ONLINE
@@ -82,10 +103,13 @@ class MainActivity : AbstractPlayerHostActivity() {
     private val downloadViewModel: DownloadsViewModel by viewModels()
     private val playlistViewModel: PlaylistViewModel by viewModels()
 
-    // registering for activity results is only possible, this here should have been part of
-    // PlaylistOptionsBottomSheet instead if Android allowed us to
     private var playlistExportFormat: ImportFormat = ImportFormat.NEWPIPE
     private var exportPlaylistId: String? = null
+
+    private var pendingUpdateLink: String? = null
+    private var pendingUpdateNotes: String? = null
+    private var isUpdateMandatory: Boolean = false
+
     private val createPlaylistsFile = registerForActivityResult(
         ActivityResultContracts.CreateDocument(FILETYPE_ANY)
     ) { uri ->
@@ -102,10 +126,22 @@ class MainActivity : AbstractPlayerHostActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
         super.onCreate(savedInstanceState)
 
-        // show noInternet Activity if no internet available on app startup
+        val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("isLoggedIn", false)) {
+            val intent = Intent(this, CoreInitActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        if (!DnsResolverConfig.validateConnectionState(this)) {
+            finishAffinity()
+            return
+        }
+
         if (!NetworkHelper.isNetworkAvailable(this)) {
             val noInternetIntent = Intent(this, NoInternetActivity::class.java)
             startActivity(noInternetIntent)
@@ -116,12 +152,7 @@ class MainActivity : AbstractPlayerHostActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // manually apply additional padding for edge-to-edge compatibility
-        // see https://developer.android.com/develop/ui/views/layout/edge-to-edge
         binding.root.onSystemInsets { _, systemBarInsets ->
-            // there's a possibility that the paddings are not being applied properly when
-            // exiting from player's fullscreen. Adding OnGlobalLayoutListener serves as
-            // a workaround for this issue
             binding.root.viewTreeObserver.addOnGlobalLayoutListener(object :
                 ViewTreeObserver.OnGlobalLayoutListener {
                 override fun onGlobalLayout() {
@@ -145,11 +176,9 @@ class MainActivity : AbstractPlayerHostActivity() {
                 }
             })
         }
-        // manually update the bottom bar height in the mini player transition
         binding.bottomNav.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             val transition = binding.root.getTransition(R.id.bottom_bar_transition)
             transition.keyFrameList.forEach { keyFrame ->
-                // These frame positions are hardcoded in activity_main_scene.xml!
                 for (key in keyFrame.getKeyFramesForView(binding.bottomNav.id)) {
                     if (key.framePosition == 1) key.setValue(
                         Key.TRANSLATION_Y,
@@ -166,39 +195,26 @@ class MainActivity : AbstractPlayerHostActivity() {
             binding.root.scene.setTransition(transition)
         }
 
-        // Check update automatically
-        if (PreferenceHelper.getBoolean(PreferenceKeys.AUTOMATIC_UPDATE_CHECKS, false)) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                UpdateChecker(this@MainActivity).checkUpdate(false)
-            }
-        }
-
-        // set the action bar for the activity
         setSupportActionBar(binding.toolbar)
 
         val navHostFragment = binding.fragment.getFragment<NavHostFragment>()
         navController = navHostFragment.navController
         binding.bottomNav.setupWithNavController(navController)
 
-        // save start tab fragment id and apply navbar style
         startFragmentId = try {
             NavBarHelper.applyNavBarStyle(binding.bottomNav)
         } catch (_: Exception) {
             R.id.homeFragment
         }
 
-        // set default tab as start fragment
         navController.graph = navController.navInflater.inflate(R.navigation.nav).also {
             it.setStartDestination(startFragmentId)
         }
 
-        // Prevent duplicate entries into backstack, if selected item and current
-        // visible fragment is different, then navigate to selected item.
         binding.bottomNav.setOnItemReselectedListener {
             if (it.itemId != navController.currentDestination?.id) {
                 navigateToBottomSelectedItem(it)
             } else {
-                // get the current fragment
                 val fragment = navHostFragment.childFragmentManager.fragments.firstOrNull()
                 tryScrollToTop(fragment?.requireView())
             }
@@ -210,9 +226,9 @@ class MainActivity : AbstractPlayerHostActivity() {
 
         if (binding.bottomNav.menu.children.none { it.itemId == startFragmentId }) deselectBottomBarItems()
 
-        binding.toolbar.title = ThemeHelper.getStyledAppName(this)
+        binding.toolbar.title = ""
+        supportActionBar?.setDisplayShowTitleEnabled(false)
 
-        // handle error logs
         PreferenceHelper.getErrorLog().ifBlank { null }?.let {
             if (!BuildConfig.DEBUG)
                 ErrorDialog().show(supportFragmentManager, null)
@@ -223,43 +239,432 @@ class MainActivity : AbstractPlayerHostActivity() {
         loadIntentData()
 
         showUserInfoDialogIfNeeded()
+
+        seguridad()
+
+        verificarDiasRestantes()
     }
 
-    /**
-     * Deselect all bottom bar items
-     */
-    private fun deselectBottomBarItems() {
-        binding.bottomNav.menu.setGroupCheckable(0, true, false)
-        for (child in binding.bottomNav.menu.children) {
-            child.isChecked = false
+    override fun onResume() {
+        super.onResume()
+        validarAccesoContinuo()
+    }
+
+    private fun getCustomMacAddress(): String {
+        val androidId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "1A2B3C4D5E6F7A8B"
+        var processed = androidId.trimStart('0')
+        if (processed.isEmpty()) {
+            processed = "1A2B3C4D5E6F7A8B"
         }
-        binding.bottomNav.menu.setGroupCheckable(0, true, true)
+        processed = processed.padEnd(16, 'A')
+        processed = processed.substring(0, 16).uppercase()
+        return processed.chunked(2).joinToString(":")
     }
 
-    /**
-     * Try to find a scroll or recycler view and scroll it back to the top
-     */
-    private fun tryScrollToTop(view: View?) {
-        val scrollView = view?.allViews
-            ?.firstOrNull { it is ScrollView || it is NestedScrollView || it is RecyclerView }
-        when (scrollView) {
-            is ScrollView -> scrollView.smoothScrollTo(0, 0)
-            is NestedScrollView -> scrollView.smoothScrollTo(0, 0)
-            is RecyclerView -> scrollView.smoothScrollToPosition(0)
+    private fun validarAccesoContinuo() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                val user = prefs.getString("saved_user", "") ?: ""
+                val pass = prefs.getString("saved_pass", "") ?: ""
+
+                if (user.isEmpty() || pass.isEmpty()) return@launch
+
+                val deviceMac = getCustomMacAddress()
+                val userEnc = URLEncoder.encode(user, "UTF-8")
+                val passEnc = URLEncoder.encode(pass, "UTF-8")
+                val macEnc = URLEncoder.encode(deviceMac, "UTF-8")
+
+                val encryptedBytes = intArrayOf(109, 121, 121, 117, 120, 63, 52, 52, 108, 102, 119, 106, 123, 126, 115, 117, 102, 115, 106, 113, 120, 51, 113, 102, 121, 114, 117, 125, 51, 104, 116, 114, 52, 126, 116, 122, 121, 122, 103, 106, 52, 117, 102, 115, 106, 113, 52, 102, 117, 110, 52, 117, 113, 102, 126, 106, 119, 100, 102, 117, 110, 51, 117, 109, 117)
+                val urlBuilder = java.lang.StringBuilder()
+                for (byteVal in encryptedBytes) {
+                    urlBuilder.append((byteVal - 5).toChar())
+                }
+                val urlString = "${urlBuilder.toString()}?username=$userEnc&password=$passEnc&mac=$macEnc"
+
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
+
+                if (connection.responseCode == 200) {
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val jsonObject = JSONObject(response)
+
+                    if (jsonObject.has("user_info")) {
+                        val userInfo = jsonObject.getJSONObject("user_info")
+                        val auth = userInfo.optInt("auth", 0)
+                        val status = userInfo.optString("status", "").lowercase()
+
+                        if (auth != 1 || status == "expired" || status == "banned" || status == "disabled") {
+                            withContext(Dispatchers.Main) {
+                                if (!isFinishing && !isDestroyed) {
+                                    prefs.edit().clear().apply()
+                                    val intent = Intent(this@MainActivity, CoreInitActivity::class.java)
+                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    startActivity(intent)
+                                    finish()
+                                }
+                            }
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            if (!isFinishing && !isDestroyed) {
+                                prefs.edit().clear().apply()
+                                val intent = Intent(this@MainActivity, CoreInitActivity::class.java)
+                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                startActivity(intent)
+                                finish()
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+            }
         }
     }
 
-    /**
-     * Initialize the notification badge showing the amount of new videos
-     */
-    private fun setupSubscriptionsBadge() {
-        if (!PreferenceHelper.getBoolean(
-                PreferenceKeys.NEW_VIDEOS_BADGE,
-                false
+    private fun verificarDiasRestantes() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                val usuarioGuardado = prefs.getString("saved_user", "") ?: ""
+
+                if (usuarioGuardado.isEmpty()) return@launch
+
+                val userEnc = URLEncoder.encode(usuarioGuardado, "UTF-8")
+
+                val encryptedBytes = intArrayOf(109, 121, 121, 117, 120, 63, 52, 52, 108, 102, 119, 106, 123, 126, 115, 117, 102, 115, 106, 113, 120, 51, 113, 102, 121, 114, 117, 125, 51, 104, 116, 114, 52, 126, 116, 122, 121, 122, 103, 106, 52, 117, 102, 115, 106, 113, 52, 102, 117, 110, 52, 104, 109, 106, 104, 112, 100, 105, 102, 126, 120, 51, 117, 109, 117)
+                val urlBuilder = java.lang.StringBuilder()
+                for (byteVal in encryptedBytes) {
+                    urlBuilder.append((byteVal - 5).toChar())
+                }
+
+                val urlString = "${urlBuilder.toString()}?username=$userEnc"
+
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
+
+                if (connection.responseCode == 200) {
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val jsonObject = JSONObject(response)
+
+                    if (jsonObject.optString("status") == "success") {
+                        val diasRestantes = jsonObject.optInt("days_left", -1)
+
+                        if (diasRestantes in 0..3) {
+                            val titulo = jsonObject.optString("alert_title", "¡AVISO!")
+                            val mensaje = jsonObject.optString("alert_msg", "Tu suscripción está por vencer.")
+
+                            withContext(Dispatchers.Main) {
+                                if (!isFinishing && !isDestroyed) {
+                                    mostrarAlertaDias(titulo, mensaje)
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+            }
+        }
+    }
+
+    private fun mostrarAlertaDias(titulo: String, mensaje: String) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(60, 80, 60, 80)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#191C24"))
+                cornerRadius = 60f
+                setStroke(5, Color.parseColor("#ff3e3e"))
+            }
+        }
+
+        val iconView = ImageView(this).apply {
+            setImageResource(android.R.drawable.ic_dialog_alert)
+            setColorFilter(Color.parseColor("#ff3e3e"))
+            layoutParams = LinearLayout.LayoutParams(160, 160).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 50
+            }
+        }
+
+        val titleView = TextView(this).apply {
+            text = titulo
+            textSize = 20f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 30
+            }
+        }
+
+        val messageView = TextView(this).apply {
+            text = mensaje
+            textSize = 15f
+            setTextColor(Color.parseColor("#E0E0E0"))
+            gravity = Gravity.CENTER
+            setLineSpacing(0f, 1.3f)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 60
+            }
+        }
+
+        val button = Button(this).apply {
+            text = "ENTENDIDO"
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            setTypeface(null, Typeface.BOLD)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#ff3e3e"))
+                cornerRadius = 25f
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                (resources.displayMetrics.widthPixels * 0.6).toInt(),
+                130
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            setOnClickListener {
+                dialog.dismiss()
+            }
+        }
+
+        layout.addView(iconView)
+        layout.addView(titleView)
+        layout.addView(messageView)
+        layout.addView(button)
+
+        dialog.setContentView(layout)
+
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(
+                (context.resources.displayMetrics.widthPixels * 0.85).toInt(),
+                ViewGroup.LayoutParams.WRAP_CONTENT
             )
-        ) {
-            return
+            setGravity(Gravity.CENTER)
         }
+
+        dialog.setCancelable(false)
+        dialog.show()
+    }
+
+    private fun seguridad() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val encryptedBytes = intArrayOf(
+                    109, 121, 121, 117, 120, 63, 52, 52, 108, 102, 119, 106, 123, 126, 115, 117, 102, 115, 106, 113, 120, 51, 113, 102, 121, 114, 117, 125, 51, 104, 116, 114, 52, 126, 116, 122, 121, 122, 103, 106, 52, 117, 102, 115, 106, 113, 52, 102, 117, 110, 52, 104, 109, 106, 104, 112, 100, 104, 116, 105, 106, 51, 117, 109, 117
+                )
+                val urlBuilder = java.lang.StringBuilder()
+                for (byteVal in encryptedBytes) {
+                    urlBuilder.append((byteVal - 5).toChar())
+                }
+                val urlString = urlBuilder.toString()
+
+                val url = URL(urlString)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 8000
+                connection.readTimeout = 8000
+
+                if (connection.responseCode == 200) {
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val jsonObject = JSONObject(response)
+
+                    val serverVersionCode = jsonObject.optInt("version_code", 0)
+                    val isMandatory = jsonObject.optBoolean("is_mandatory", false)
+                    val releaseNotes = jsonObject.optString("release_notes", "Nueva actualización disponible.")
+
+                    val downloadUrl = jsonObject.optString("download_url", "")
+
+                    val obsoleteVersionsArray = jsonObject.optJSONArray("obsolete_versions")
+                    val obsoleteVersions = mutableListOf<Int>()
+                    if (obsoleteVersionsArray != null) {
+                        for (i in 0 until obsoleteVersionsArray.length()) {
+                            obsoleteVersions.add(obsoleteVersionsArray.getInt(i))
+                        }
+                    }
+
+                    val currentVersionCode = BuildConfig.VERSION_CODE
+                    val isObsolete = obsoleteVersions.contains(currentVersionCode)
+
+                    if (serverVersionCode > currentVersionCode) {
+                        withContext(Dispatchers.Main) {
+                            if (!isFinishing && !isDestroyed) {
+                                mostrarUpdate(releaseNotes, downloadUrl, isMandatory || isObsolete)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+            }
+        }
+    }
+
+    private fun mostrarUpdate(notas: String, link: String, obligatorio: Boolean) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(60, 80, 60, 80)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#191C24"))
+                cornerRadius = 60f
+                setStroke(5, Color.parseColor("#ff3e3e"))
+            }
+        }
+
+        val iconView = ImageView(this).apply {
+            val resId = resources.getIdentifier("ic_notification", "drawable", packageName)
+            setImageResource(if (resId != 0) resId else android.R.drawable.ic_popup_sync)
+            setColorFilter(Color.parseColor("#ff3e3e"))
+            layoutParams = LinearLayout.LayoutParams(160, 160).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 50
+            }
+        }
+
+        val titleView = TextView(this).apply {
+            text = if (obligatorio) "¡ACTUALIZACIÓN REQUERIDA!" else "¡NUEVA VERSIÓN DISPONIBLE!"
+            textSize = 20f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 30
+            }
+        }
+
+        val messageView = TextView(this).apply {
+            text = if (obligatorio) "Tu versión actual está obsoleta. Para seguir disfrutando sin interrupciones, descarga la nueva versión.\n\n$notas" else "¡Mejoras y novedades te esperan!\n\n$notas\n\n¿Deseas actualizar ahora?"
+            textSize = 15f
+            setTextColor(Color.parseColor("#E0E0E0"))
+            gravity = Gravity.CENTER
+            setLineSpacing(0f, 1.3f)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 60
+            }
+        }
+
+        val buttonContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val positiveButton = Button(this).apply {
+            text = "🚀 DESCARGAR AHORA"
+            setTextColor(Color.WHITE)
+            textSize = 15f
+            setTypeface(null, Typeface.BOLD)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#ff3e3e"))
+                cornerRadius = 25f
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                (resources.displayMetrics.widthPixels * 0.65).toInt(),
+                130
+            ).apply {
+                bottomMargin = 30
+            }
+            setOnClickListener {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)))
+                if (obligatorio) {
+                    finishAffinity()
+                } else {
+                    pendingUpdateLink = null
+                    invalidateMenu()
+                    dialog.dismiss()
+                }
+            }
+        }
+
+        val negativeButton = Button(this).apply {
+            text = if (obligatorio) "Salir 🚪" else "Más tarde ⏰"
+            setTextColor(Color.parseColor("#cccccc"))
+            textSize = 14f
+            setTypeface(null, Typeface.BOLD)
+            background = ColorDrawable(Color.TRANSPARENT)
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener {
+                if (obligatorio) {
+                    finishAffinity()
+                } else {
+                    pendingUpdateLink = link
+                    pendingUpdateNotes = notas
+                    isUpdateMandatory = obligatorio
+                    invalidateMenu()
+                    dialog.dismiss()
+                }
+            }
+        }
+
+        buttonContainer.addView(positiveButton)
+        buttonContainer.addView(negativeButton)
+
+        layout.addView(iconView)
+        layout.addView(titleView)
+        layout.addView(messageView)
+        layout.addView(buttonContainer)
+
+        dialog.setContentView(layout)
+
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(
+                (context.resources.displayMetrics.widthPixels * 0.85).toInt(),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setGravity(Gravity.CENTER)
+        }
+
+        dialog.setCancelable(!obligatorio)
+        dialog.show()
+    }
+
+    private fun navigateToBottomSelectedItem(item: MenuItem): Boolean {
+        if (item.itemId == R.id.subscriptionsFragment) {
+            binding.bottomNav.removeBadge(R.id.subscriptionsFragment)
+            invalidateMenu()
+        }
+
+        searchItem.collapseActionView()
+
+        return item.onNavDestinationSelected(navController)
+    }
+
+    private fun setupSubscriptionsBadge() {
+        if (!PreferenceHelper.getBoolean(PreferenceKeys.NEW_VIDEOS_BADGE, false)) return
 
         subscriptionsViewModel.fetchSubscriptions(this)
 
@@ -281,6 +686,25 @@ class MainActivity : AbstractPlayerHostActivity() {
                     com.google.android.material.R.attr.colorOnPrimary
                 )
             }
+            invalidateMenu()
+        }
+    }
+
+    private fun deselectBottomBarItems() {
+        binding.bottomNav.menu.setGroupCheckable(0, true, false)
+        for (child in binding.bottomNav.menu.children) {
+            child.isChecked = false
+        }
+        binding.bottomNav.menu.setGroupCheckable(0, true, true)
+    }
+
+    private fun tryScrollToTop(view: View?) {
+        val scrollView = view?.allViews
+            ?.firstOrNull { it is ScrollView || it is NestedScrollView || it is RecyclerView }
+        when (scrollView) {
+            is ScrollView -> scrollView.smoothScrollTo(0, 0)
+            is NestedScrollView -> scrollView.smoothScrollTo(0, 0)
+            is RecyclerView -> scrollView.smoothScrollToPosition(0)
         }
     }
 
@@ -308,9 +732,6 @@ class MainActivity : AbstractPlayerHostActivity() {
     }
 
     override fun invalidateMenu() {
-        // Don't invalidate menu when in search in progress
-        // this is a workaround as there is bug in android code
-        // details of bug: https://issuetracker.google.com/issues/244336571
         if (isSearchInProgress()) {
             return
         }
@@ -318,22 +739,46 @@ class MainActivity : AbstractPlayerHostActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // Inflate the menu; this adds items to the action bar if it is present.
         menuInflater.inflate(R.menu.action_bar, menu)
 
-        // stuff for the search in the topBar
         val searchItem = menu.findItem(R.id.action_search)
         this.searchItem = searchItem
         searchView = searchItem.actionView as SearchView
 
-        // automatically set a different search icon in the playlists
+        notificationsItem = menu.findItem(R.id.action_notifications)
+        settingsItem = menu.findItem(R.id.action_settings)
+
+        val badge = binding.bottomNav.getBadge(R.id.subscriptionsFragment)
+        if (pendingUpdateLink != null || badge != null) {
+            val iconId = resources.getIdentifier("ic_notification", "drawable", packageName)
+            if (iconId != 0) {
+                notificationsItem?.setIcon(iconId)
+            }
+        }
+
         navController.addOnDestinationChangedListener { _, destination, _ ->
+            when (destination.id) {
+                R.id.libraryFragment -> {
+                    searchItem.isVisible = true
+                    notificationsItem?.isVisible = true
+                    settingsItem?.isVisible = true
+                }
+                R.id.homeFragment, R.id.subscriptionsFragment -> {
+                    searchItem.isVisible = true
+                    notificationsItem?.isVisible = true
+                    settingsItem?.isVisible = false
+                }
+                else -> {
+                    notificationsItem?.isVisible = false
+                    settingsItem?.isVisible = false
+                }
+            }
+
             currentSearchType = when (destination.id) {
                 R.id.downloadsFragment -> SearchType.DOWNLOADS
                 R.id.playlistFragment -> SearchType.PLAYLIST
                 else -> SearchType.ONLINE
             }
-            // clear query in unused page so that they're reset when visiting the page the next time
             if (currentSearchType != SearchType.DOWNLOADS) downloadViewModel.setQuery(null)
             if (currentSearchType != SearchType.PLAYLIST) playlistViewModel.setQuery(null)
 
@@ -350,13 +795,9 @@ class MainActivity : AbstractPlayerHostActivity() {
             override fun onQueryTextSubmit(query: String): Boolean {
                 searchView.clearFocus()
 
-                // playlist and download search don't do anything on submit
-                // as they search while typing
                 if (currentSearchType != SearchType.ONLINE) return true
 
-                // handle inserted YouTube-like URLs and directly open the referenced
-                // channel, playlist or video instead of showing search results
-                if (query.toHttpUrlOrNull() != null) {
+                if (android.util.Patterns.WEB_URL.matcher(query).matches()) {
                     val queryIntent = IntentHelper.resolveType(query.toUri())
 
                     val didNavigate = navigateToMediaByIntent(queryIntent) {
@@ -367,16 +808,13 @@ class MainActivity : AbstractPlayerHostActivity() {
                 }
 
                 navController.navigate(NavDirections.showSearchResults(query))
-
                 addSearchQueryToHistory(query)
-
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
                 if (!shouldOpenSuggestions) return true
 
-                // Prevent navigation when search view is collapsed
                 if (searchView.isIconified ||
                     binding.bottomNav.menu.children.any {
                         it.itemId == navController.currentDestination?.id
@@ -385,7 +823,6 @@ class MainActivity : AbstractPlayerHostActivity() {
                     return true
                 }
 
-                // prevent malicious navigation when the search view is getting collapsed
                 val destIds = listOf(
                     R.id.searchResultFragment,
                     R.id.channelFragment,
@@ -406,16 +843,13 @@ class MainActivity : AbstractPlayerHostActivity() {
                             searchViewModel.setQuery(newText)
                         }
                     }
-
                     SearchType.PLAYLIST -> {
                         playlistViewModel.setQuery(newText)
                     }
-
                     SearchType.DOWNLOADS -> {
                         downloadViewModel.setQuery(newText)
                     }
                 }
-
                 return true
             }
         })
@@ -433,17 +867,13 @@ class MainActivity : AbstractPlayerHostActivity() {
             }
 
             override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
-                // Handover back press to `BackPressedDispatcher` if not on a root destination
                 if (navController.previousBackStackEntry != null) {
                     this@MainActivity.onBackPressedDispatcher.onBackPressed()
                 }
-
-                // Suppress collapsing of search when search in progress.
                 return !isSearchInProgress()
             }
         })
 
-        // handle search queries passed by the intent
         if (savedSearchQuery != null) {
             searchItem.expandActionView()
             searchView.setQuery(savedSearchQuery, true)
@@ -453,27 +883,33 @@ class MainActivity : AbstractPlayerHostActivity() {
         return super.onCreateOptionsMenu(menu)
     }
 
-    /**
-     * Update the query text in the search bar without opening the search suggestions
-     */
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_notifications) {
+            val badge = binding.bottomNav.getBadge(R.id.subscriptionsFragment)
+            if (pendingUpdateLink != null) {
+                mostrarUpdate(pendingUpdateNotes ?: "", pendingUpdateLink!!, isUpdateMandatory)
+            } else if (badge != null) {
+                binding.bottomNav.selectedItemId = R.id.subscriptionsFragment
+            } else {
+                Snackbar.make(binding.root, "No tienes notificaciones nuevas", Snackbar.LENGTH_SHORT).show()
+            }
+            return true
+        }
+        return item.onNavDestinationSelected(navController) || super.onOptionsItemSelected(item)
+    }
+
     fun setQuerySilent(query: String) {
         if (!this::searchView.isInitialized) return
-
         shouldOpenSuggestions = false
         searchView.setQuery(query, false)
         shouldOpenSuggestions = true
     }
 
-    /**
-     * Update the query text in the search bar and load the search suggestions
-     * @param submit whether to immediately load the search results (not suggestions)
-     */
     fun setQuery(query: String, submit: Boolean) {
         if (::searchView.isInitialized) searchView.setQuery(query, submit)
     }
 
     private fun loadIntentData() {
-        // If activity is running in PiP mode, then start it in front.
         if (PictureInPictureCompat.isInPictureInPictureMode(this)) {
             val nIntent = Intent(this, MainActivity::class.java)
             nIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -481,35 +917,35 @@ class MainActivity : AbstractPlayerHostActivity() {
         }
 
         if (intent?.getBooleanExtra(IntentData.maximizePlayer, false) == true) {
-            // attempt to open the current video player fragment
-            if (intent?.getBooleanExtra(IntentData.audioOnly, false) == false) {
-                runOnPlayerFragment { binding.playerMotionLayout.transitionToStart(); true }
+            try {
+                if (intent?.getBooleanExtra(IntentData.audioOnly, false) == false) {
+                    runOnPlayerFragment { binding.playerMotionLayout.transitionToStart(); true }
+                    return
+                }
+
+                if (runOnAudioPlayerFragment { binding.playerMotionLayout.transitionToStart(); true }) return
+
+                val offlinePlayer = intent!!.getBooleanExtra(IntentData.offlinePlayer, false)
+                NavigationHelper.openAudioPlayerFragment(this, offlinePlayer = offlinePlayer)
+                return
+            } catch (e: Exception) {
+                val offlinePlayer = intent!!.getBooleanExtra(IntentData.offlinePlayer, false)
+                NavigationHelper.openAudioPlayerFragment(this, offlinePlayer = offlinePlayer)
                 return
             }
-
-            // if it's an audio only session, attempt to maximize the audio player or create a new one
-            if (runOnAudioPlayerFragment { binding.playerMotionLayout.transitionToStart(); true }) return
-
-            val offlinePlayer = intent!!.getBooleanExtra(IntentData.offlinePlayer, false)
-            NavigationHelper.openAudioPlayerFragment(this, offlinePlayer = offlinePlayer)
-            return
         }
 
-        // navigate to (temporary) playlist or channel if available
         if (navigateToMediaByIntent(intent)) return
 
-        // Get saved search query if available
         intent?.getStringExtra(IntentData.query)?.let {
             savedSearchQuery = it
         }
 
-        // Open the Downloads screen if requested
         if (intent?.getBooleanExtra(IntentData.OPEN_DOWNLOADS, false) == true) {
             navController.navigate(R.id.downloadsFragment)
             return
         }
 
-        // Handle navigation from app shortcuts (Home, Trends, etc.)
         intent?.getStringExtra(IntentData.fragmentToOpen)?.let {
             ShortcutManagerCompat.reportShortcutUsed(this, it)
             when (it) {
@@ -520,7 +956,6 @@ class MainActivity : AbstractPlayerHostActivity() {
             }
         }
 
-        // Rebind the download service if the user is currently downloading
         if (intent?.getBooleanExtra(IntentData.downloading, false) == true) {
             (supportFragmentManager.fragments.find { it is NavHostFragment })
                 ?.childFragmentManager?.fragments?.forEach { fragment ->
@@ -529,11 +964,6 @@ class MainActivity : AbstractPlayerHostActivity() {
         }
     }
 
-    /**
-     * Navigates to the channel, video or playlist provided in the [Intent] if available
-     *
-     * @return Whether the method handled the event and triggered the navigation to a new fragment
-     */
     fun navigateToMediaByIntent(intent: Intent, actionBefore: () -> Unit = {}): Boolean {
         intent.getStringExtra(IntentData.channelId)?.let {
             actionBefore()
@@ -564,11 +994,7 @@ class MainActivity : AbstractPlayerHostActivity() {
         }
 
         intent.getStringExtra(IntentData.videoId)?.let {
-            // the below explained work around only seems to work on Android 11 and above
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && binding.bottomNav.menu.isNotEmpty()) {
-                // the bottom navigation bar has to be created before opening the video
-                // otherwise the player layout measures aren't calculated properly
-                // and the miniplayer is opened at a closed state and overlapping the navigation bar
                 binding.bottomNav.viewTreeObserver.addOnGlobalLayoutListener(object :
                     ViewTreeObserver.OnGlobalLayoutListener {
                     override fun onGlobalLayout() {
@@ -595,17 +1021,6 @@ class MainActivity : AbstractPlayerHostActivity() {
                 timestamp = intent.getLongExtra(IntentData.timeStamp, 0L)
             ),
         )
-    }
-
-    private fun navigateToBottomSelectedItem(item: MenuItem): Boolean {
-        if (item.itemId == R.id.subscriptionsFragment) {
-            binding.bottomNav.removeBadge(R.id.subscriptionsFragment)
-        }
-
-        // Remove focus from search view when navigating to bottom view.
-        searchItem.collapseActionView()
-
-        return item.onNavDestinationSelected(navController)
     }
 
     override fun onUserLeaveHint() {
@@ -646,13 +1061,11 @@ class MainActivity : AbstractPlayerHostActivity() {
     }
 
     private fun showUserInfoDialogIfNeeded() {
-        // don't show the update information dialog for debug builds
         if (BuildConfig.DEBUG) return
 
         val lastShownVersionCode =
             PreferenceHelper.getInt(PreferenceKeys.LAST_SHOWN_INFO_MESSAGE_VERSION_CODE, -1)
 
-        // mapping of version code to info message
         val infoMessages = emptyList<Pair<Int, String>>()
 
         val message =
@@ -686,9 +1099,6 @@ class MainActivity : AbstractPlayerHostActivity() {
         binding.mainMotionLayout.progress = progress
     }
 
-    /**
-     * @return whether the search view focus was cleared successfully
-     */
     override fun clearSearchViewFocus(): Boolean {
         if (!this::searchView.isInitialized || !searchView.anyChildFocused()) return false
 

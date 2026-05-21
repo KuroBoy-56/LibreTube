@@ -2,13 +2,13 @@ package com.github.libretube.ui.viewholders
 
 import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.databinding.ChannelRowBinding
-import com.github.libretube.databinding.PlaylistsRowBinding
+import com.github.libretube.databinding.PlaylistListRowItemBinding
 import com.github.libretube.databinding.VideoRowBinding
 
 class SearchViewHolder : RecyclerView.ViewHolder {
     var videoRowBinding: VideoRowBinding? = null
     var channelRowBinding: ChannelRowBinding? = null
-    var playlistRowBinding: PlaylistsRowBinding? = null
+    var playlistRowBinding: PlaylistListRowItemBinding? = null
 
     constructor(binding: VideoRowBinding) : super(binding.root) {
         videoRowBinding = binding
@@ -18,7 +18,7 @@ class SearchViewHolder : RecyclerView.ViewHolder {
         channelRowBinding = binding
     }
 
-    constructor(binding: PlaylistsRowBinding) : super(binding.root) {
+    constructor(binding: PlaylistListRowItemBinding) : super(binding.root) {
         playlistRowBinding = binding
     }
 }

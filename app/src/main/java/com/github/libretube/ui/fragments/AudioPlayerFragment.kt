@@ -22,6 +22,7 @@ import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import com.github.libretube.R
@@ -55,14 +56,15 @@ import com.github.libretube.ui.listeners.AudioPlayerThumbnailListener
 import com.github.libretube.ui.models.ChaptersViewModel
 import com.github.libretube.ui.models.CommonPlayerViewModel
 import com.github.libretube.ui.sheets.ChaptersBottomSheet
-import com.github.libretube.ui.sheets.PlaybackOptionsSheet
 import com.github.libretube.ui.sheets.PlayingQueueSheet
 import com.github.libretube.ui.sheets.SleepTimerSheet
 import com.github.libretube.ui.sheets.VideoOptionsBottomSheet
 import com.github.libretube.util.DataSaverMode
 import com.github.libretube.util.PlayingQueue
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
+import kotlin.math.max
 
 @UnstableApi
 class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlayerOptions {
@@ -74,7 +76,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
     private val viewModel: CommonPlayerViewModel by activityViewModels()
     private val chaptersModel: ChaptersViewModel by activityViewModels()
 
-    // for the transition
     private var transitionStartId = 0
     private var transitionEndId = 0
 
@@ -89,7 +90,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         super.onCreate(savedInstanceState)
 
         audioHelper = AudioHelper(requireContext())
-
         isOffline = requireArguments().getBoolean(IntentData.offlinePlayer)
 
         BackgroundHelper.startMediaService(
@@ -101,7 +101,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
                 it.release()
                 return@startMediaService
             }
-
             playerController = it
             handleServiceConnection()
         }
@@ -112,7 +111,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         _binding = FragmentAudioPlayerBinding.bind(view)
         super.onViewCreated(view, savedInstanceState)
 
-        // manually apply additional padding for edge-to-edge compatibility
         activity.getSystemInsets()?.let { systemBars ->
             with(binding.audioPlayerMain) {
                 setPadding(
@@ -126,7 +124,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
 
         initializeTransitionLayout()
 
-        // select the title TV in order for it to automatically scroll
         binding.title.isSelected = true
         binding.uploader.isSelected = true
 
@@ -140,11 +137,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
             binding.playerMotionLayout.transitionToEnd()
         }
 
-        binding.autoPlay.isChecked = PlayerHelper.autoPlayEnabled
-        binding.autoPlay.setOnCheckedChangeListener { _, isChecked ->
-            PlayerHelper.autoPlayEnabled = isChecked
-        }
-
         binding.prev.setOnClickListener {
             playerController?.navigateVideo(PlayingQueue.getPrev() ?: return@setOnClickListener)
         }
@@ -156,6 +148,7 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         binding.rewindBTN.setOnClickListener {
             playerController?.seekBy(-PlayerHelper.seekIncrement)
         }
+
         binding.forwardBTN.setOnClickListener {
             playerController?.seekBy(PlayerHelper.seekIncrement)
         }
@@ -168,24 +161,13 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
                 args.getString(IntentData.videoId) ?: return@setFragmentResultListener
             )
         }
-        binding.openQueue.setOnClickListener {
-            PlayingQueueSheet().show(childFragmentManager)
-        }
 
-        binding.playbackOptions.setOnClickListener {
-            playerController?.let {
-                PlaybackOptionsSheet(it)
-                    .show(childFragmentManager)
-            }
+        binding.openQueue.setOnClickListener {
+            PlayingQueueSheet().show(childFragmentManager, PlayingQueueSheet::class.java.name)
         }
 
         binding.sleepTimer.setOnClickListener {
-            SleepTimerSheet().show(childFragmentManager)
-        }
-
-        binding.openVideo.setOnClickListener {
-            val currentId = PlayingQueue.getCurrent()?.url?.toID()
-            switchToVideoMode(currentId ?: return@setOnClickListener)
+            SleepTimerSheet().show(childFragmentManager, SleepTimerSheet::class.java.name)
         }
 
         childFragmentManager.setFragmentResultListener(
@@ -206,7 +188,7 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
                         IntentData.duration to playerController?.duration?.div(1000)
                     )
                 }
-                .show(childFragmentManager)
+                .show(childFragmentManager, ChaptersBottomSheet::class.java.name)
         }
 
         binding.miniPlayerClose.setOnClickListener {
@@ -224,11 +206,10 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
             playerController?.togglePlayPauseState()
         }
 
-        binding.showMore.setOnClickListener {
+        binding.addToPlaylist.setOnClickListener {
             onLongTap()
         }
 
-        // update the currently shown volume
         binding.volumeProgressBar.let { bar ->
             bar.progress = audioHelper.getVolumeWithScale(bar.max)
         }
@@ -256,14 +237,10 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         setOnBackPressed(onBackPressedCallback)
 
         viewModel.isMiniPlayerVisible.observe(viewLifecycleOwner) { isMiniPlayerVisible ->
-            // re-add the callback on top of the back pressed dispatcher listeners stack,
-            // so that it's the first one to become called while the full player is visible
             if (!isMiniPlayerVisible) {
                 onBackPressedCallback.remove()
                 setOnBackPressed(onBackPressedCallback)
             }
-
-            // if the player is minimized, the fragment behind the player should handle the event
             onBackPressedCallback.isEnabled = isMiniPlayerVisible != true
         }
     }
@@ -343,9 +320,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         }
     }
 
-    /**
-     * Load the information from a new stream into the UI
-     */
     private fun updateStreamInfo(metadata: MediaMetadata) {
         val binding = _binding ?: return
 
@@ -377,7 +351,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
 
         binding.progress.isVisible = true
         binding.thumbnail.isGone = true
-        // reset color filter if data saver mode got toggled or conditions for it changed
         binding.thumbnail.setColorFilter(Color.TRANSPARENT)
 
         lifecycleScope.launch {
@@ -397,28 +370,24 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         updateSeekBar()
     }
 
-    /**
-     * Update the position, duration and text views belonging to the seek bar
-     */
     private fun updateSeekBar() {
         val binding = _binding ?: return
-        val duration = playerController?.duration?.takeIf { it > 0 } ?: let {
-            // if there's no duration available, clear everything
+        val durationRaw = playerController?.duration ?: 0L
+        val duration = max(0L, durationRaw).takeIf { it > 0 } ?: let {
             binding.timeBar.value = 0f
             binding.duration.text = ""
             binding.currentPosition.text = ""
             handler.postDelayed(this::updateSeekBar, 100)
             return
         }
-        val currentPosition = playerController?.currentPosition?.toFloat() ?: 0f
+        val currentPositionRaw = playerController?.currentPosition ?: 0L
+        val currentPosition = max(0L, currentPositionRaw).toFloat()
 
-        // set the text for the indicators
         binding.duration.text = DateUtils.formatElapsedTime(duration / 1000)
         binding.currentPosition.text = DateUtils.formatElapsedTime(
             (currentPosition / 1000).toLong()
         )
 
-        // update the time bar current value and maximum value
         binding.timeBar.valueTo = (duration / 1000).toFloat()
         binding.timeBar.value = clamp(
             currentPosition / 1000,
@@ -434,7 +403,7 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
             val binding = _binding ?: return
 
             val iconRes = PlayerHelper.getPlayPauseActionIcon(it)
-            binding.playPause.setIconResource(iconRes)
+            binding.playPause.setImageResource(iconRes)
             binding.miniPlayerPause.setImageResource(iconRes)
         }
     }
@@ -443,25 +412,39 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         playerController?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 super.onIsPlayingChanged(isPlaying)
-
                 updatePlayPauseButton()
                 isPaused = !isPlaying
             }
 
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 super.onMediaMetadataChanged(mediaMetadata)
-
                 updateStreamInfo(mediaMetadata)
-                // JSON-encode as work-around for https://github.com/androidx/media/issues/564
                 val chapters: List<ChapterSegment>? =
                     mediaMetadata.extras?.getString(IntentData.chapters)?.let {
                         JsonHelper.json.decodeFromString(it)
                     }
                 chaptersModel.chaptersLiveData.value = chapters
             }
+
+            override fun onPlayerError(error: PlaybackException) {
+                super.onPlayerError(error)
+                try {
+                    playerController?.pause()
+                    activity?.runOnUiThread {
+                        if (_binding != null && isAdded) {
+                            Snackbar.make(
+                                binding.root,
+                                "Audio no disponible o restringido.",
+                                Snackbar.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         })
         playerController?.mediaMetadata?.let { updateStreamInfo(it) }
-        // JSON-encode as work-around for https://github.com/androidx/media/issues/564
         chaptersModel.chaptersLiveData.value =
             playerController?.mediaMetadata?.extras?.getString(IntentData.chapters)?.let {
                 JsonHelper.json.decodeFromString(it)
@@ -469,6 +452,11 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
 
         updatePlayPauseButton()
         initializeSeekBar()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        handler.removeCallbacksAndMessages(null)
     }
 
     override fun onDestroyView() {
@@ -486,7 +474,7 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
             .apply {
                 arguments = bundleOf(IntentData.streamItem to current)
             }
-            .show(childFragmentManager)
+            .show(childFragmentManager, VideoOptionsBottomSheet::class.java.name)
     }
 
     override fun onSwipe(distanceY: Float) {
@@ -498,7 +486,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
 
     override fun onSwipeEnd() {
         if (!PlayerHelper.swipeGestureEnabled) return
-
         binding.volumeControls.isGone = true
     }
 
@@ -507,8 +494,6 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         binding.volumeControls.apply {
             if (isGone) {
                 isVisible = true
-                // Volume could be changed using other mediums, sync progress
-                // bar with new value.
                 bar.progress = audioHelper.getVolumeWithScale(bar.max)
             }
         }

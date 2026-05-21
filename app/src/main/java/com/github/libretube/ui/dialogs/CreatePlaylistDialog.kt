@@ -1,7 +1,13 @@
 package com.github.libretube.ui.dialogs
 
-import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.util.TypedValue
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
@@ -13,20 +19,54 @@ import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.constants.IntentData
 import com.github.libretube.databinding.DialogCreatePlaylistBinding
 import com.github.libretube.extensions.toastFromMainDispatcher
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 class CreatePlaylistDialog : DialogFragment() {
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val binding = DialogCreatePlaylistBinding.inflate(layoutInflater)
+
+    private var _binding: DialogCreatePlaylistBinding? = null
+    private val binding get() = _binding!!
+
+    // MAGIA 1: Hacemos que la ventana flote y tome el 90% del ancho
+    override fun onStart() {
+        super.onStart()
+        dialog?.window?.apply {
+            setLayout(
+                (resources.displayMetrics.widthPixels * 0.9).toInt(),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        }
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = DialogCreatePlaylistBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // MAGIA 2: Fondo redondeado y adaptativo (Blanco en la luz, Gris/Negro en la oscuridad)
+        val bg = GradientDrawable()
+        val typedValue = TypedValue()
+        requireContext().theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, typedValue, true)
+        bg.setColor(typedValue.data)
+        bg.cornerRadius = 40f // Esquinas bien redondas
+        view.background = bg
+        view.clipToOutline = true
 
         binding.createPlaylistSpinner.items = listOf(
             getString(R.string.createNewPlaylist),
             getString(R.string.clonePlaylist)
         )
+
         binding.createPlaylistSpinner.setOnSelectionChangeListener { position ->
             binding.createPlayistContainerView.isVisible = position == 0
             binding.clonePlaylistContainerView.isVisible = position == 1
@@ -67,7 +107,6 @@ class CreatePlaylistDialog : DialogFragment() {
             val appContext = context?.applicationContext
             val listName = binding.playlistName.text?.toString()
             if (!listName.isNullOrEmpty()) {
-                // avoid creating the same playlist multiple times by spamming the button
                 binding.createNewPlaylist.setOnClickListener(null)
                 lifecycleScope.launch {
                     requireDialog().hide()
@@ -96,17 +135,17 @@ class CreatePlaylistDialog : DialogFragment() {
         }
 
         binding.cancelCreate.setOnClickListener {
-            dialog?.cancel()
+            dismiss()
         }
 
         binding.cancelClone.setOnClickListener {
-            dialog?.cancel()
+            dismiss()
         }
+    }
 
-        return MaterialAlertDialogBuilder(requireContext())
-            .setTitle(R.string.createPlaylist)
-            .setView(binding.root)
-            .show()
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 
     companion object {

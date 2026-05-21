@@ -24,12 +24,13 @@ import kotlin.math.pow
 
 class PlaybackOptionsSheet(
     private val player: MediaController
-) : ExpandedBottomSheet(R.layout.playback_bottom_sheet) {
+) : BaseBottomSheet(R.layout.playback_bottom_sheet) { // Hereda del nuevo molde BaseBottomSheet para que flote
     private var _binding: PlaybackBottomSheetBinding? = null
     private val binding get() = _binding!!
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState) // Inicializa el redondeo del BaseBottomSheet
         _binding = PlaybackBottomSheetBinding.bind(view)
 
         binding.speedShortcuts.layoutManager =
@@ -52,7 +53,6 @@ class PlaybackOptionsSheet(
             }
 
             if (editText.text.isEmpty()) {
-                // reset to previous value
                 binding.semitoneEditText.setText(binding.pitch.value.round(2).toString())
                 clearEditTextFocusAndHideKeyboard()
                 return@setOnEditorActionListener false
@@ -64,9 +64,6 @@ class PlaybackOptionsSheet(
                     R.string.playback_pitch_semitone_error_input,
                     SEMITONES_IN_ONE_OCTAVE
                 )
-
-                // return true here to prevent the keyboard from closing when
-                // the user entered a wrong value
                 return@setOnEditorActionListener true
             }
             changePlaybackPitchInSemitone(enteredSemitoneValue)
@@ -147,20 +144,10 @@ class PlaybackOptionsSheet(
         onChange()
     }
 
-    // Reference: https://en.wikipedia.org/wiki/Twelfth_root_of_two
-    // From the wiki, "Each note has a frequency that is 2^(1/12) times that of the one below it.", so
-    // to get the desired frequency (or in this case playback pitch), we multiply the original frequency
-    // with the ratio: 2^(1/12). And for n semitone, we raise the ratio to the power of n and multiply
-    // that to the original frequency. So, the final equation:
-    //
-    // desiredPlaybackPitch = defaultPlaybackPitch * (ratio^n)
-    //
-    // And the defaultPlaybackPitch value is 1.0f, so we can omit that
     private fun semitoneToPlaybackPitch(semitone: Float): Float {
         return SEMITONE_RATIO.pow(semitone).toFloat()
     }
 
-    // Get the exponent(or in this case semitone) value from a known base (the semitone's ratio)
     private fun playbackPitchToSemitone(playbackPitch: Float): Float {
         return log(playbackPitch, SEMITONE_RATIO)
     }
@@ -175,13 +162,7 @@ class PlaybackOptionsSheet(
 
     companion object {
         private val SUGGESTED_SPEEDS = listOf(0.5f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f)
-
-        // Semitone's ratio in equal temperament is the 12th root of 2, or 2^(1/12)
-        // References:
-        // -https://en.wikipedia.org/wiki/12_equal_temperament
-        // -https://en.wikipedia.org/wiki/Twelfth_root_of_two
         private const val SEMITONE_RATIO = 1.059463f
-
         private const val SEMITONES_IN_ONE_OCTAVE = 12.0f
     }
 }

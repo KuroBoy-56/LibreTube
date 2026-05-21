@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">LibreTube</string>
-    <string name="startpage">Home</string>
-    <string name="subscriptions">Subscriptions</string>
-    <string name="library">Library</string>
+    <string name="app_name" translatable="false">YouTube Mod</string>
+    <string name="startpage" translatable="false">Home</string>
+    <string name="subscriptions" translatable="false">Subscriptions</string>
+    <string name="library" translatable="false">Library</string>
     <string name="yes">Yes</string>
     <string name="search_hint">Search</string>
     <string name="videos">Videos</string>
@@ -583,4 +583,5 @@
     <string name="also_clear_watch_positions">Also clear watch positions</string>
     <string name="import_temp_playlist">Import temporary playlist?</string>
     <string name="import_temp_playlist_summary">Do you want to create a new playlist named \'%1$s\'? The playlist will contain %2$d videos.</string>
+    <string name="home">inicio</string>
 </resources>
