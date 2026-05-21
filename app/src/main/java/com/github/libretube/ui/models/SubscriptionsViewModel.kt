@@ -7,6 +7,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.libretube.R
+import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.SubscriptionHelper
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.api.obj.Subscription
@@ -28,9 +29,42 @@ class SubscriptionsViewModel : ViewModel() {
     fun fetchFeed(context: Context, forceRefresh: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val videoFeed = SubscriptionHelper.getFeed(forceRefresh = forceRefresh) { feedProgress ->
+                var videoFeed = SubscriptionHelper.getFeed(forceRefresh = forceRefresh) { feedProgress ->
                     this@SubscriptionsViewModel.feedProgress.postValue(feedProgress)
                 }
+                
+                // --- FALLBACK DE BÚSQUEDA SI EL FEED ESTÁ VACÍO ---
+                if (videoFeed.isEmpty()) {
+                    try {
+                        val subscriptions = SubscriptionHelper.getSubscriptions()
+                        if (subscriptions.isNotEmpty()) {
+                            val fallbackList = mutableListOf<StreamItem>()
+                            // Intentamos obtener los últimos vídeos de los canales suscritos
+                            // Iteramos sobre los canales para recolectar un total de 50 videos
+                            for (sub in subscriptions) {
+                                if (fallbackList.size >= 50) break
+                                try {
+                                    val searchResult = MediaServiceRepository.instance.getSearchResults(sub.name, "videos")
+                                    val items = searchResult.items
+                                        .filter { it.type == "stream" }
+                                        .map { it.toStreamItem() }
+                                        .take(10) // Tomamos hasta 10 por canal para diversidad
+                                    fallbackList.addAll(items)
+                                } catch (e: Exception) { /* Ignorar error por canal individual */ }
+                            }
+                            if (fallbackList.isNotEmpty()) {
+                                videoFeed = fallbackList
+                                    .sortedByDescending { it.uploaded }
+                                    .distinctBy { it.url } // Evitar duplicados
+                                    .take(50) // Limitar a los 50 más recientes en total
+                            }
+                        }
+                    } catch (e: Exception) { /* Silently fail search fallback */ }
+                } else {
+                    // Ordenar el feed normal también de más reciente a más antiguo
+                    videoFeed = videoFeed.sortedByDescending { it.uploaded }
+                }
+
                 this@SubscriptionsViewModel.videoFeed.postValue(videoFeed)
                 videoFeed.firstOrNull { !it.isUpcoming }?.uploaded?.let {
                     PreferenceHelper.updateLastFeedWatchedTime(it, false)

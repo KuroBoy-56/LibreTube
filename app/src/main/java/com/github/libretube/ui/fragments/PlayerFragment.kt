@@ -213,12 +213,6 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private var bufferingTimeoutTask: Runnable? = null
 
     private var retryCount = 0
-    private val backupServers = listOf(
-        "https://pipedapi.tokhmi.xyz",
-        "https://pipedapi.adminforge.de",
-        "https://pi.pjsf.fr",
-        "https://pipedapi.kavin.rocks"
-    )
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -334,25 +328,30 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             try {
                 activity?.runOnUiThread {
                     if (_binding != null && isAdded) {
-                        if (retryCount < backupServers.size) {
-                            val nextServer = backupServers[retryCount]
+                        // Rotación automática con servidores de alta disponibilidad
+                        if (retryCount < 8) {
                             retryCount++
 
-                            com.github.libretube.helpers.PreferenceHelper.putString("api_url", nextServer)
+                            val nextInstance = com.github.libretube.helpers.PreferenceHelper.rotateInstance()
+                            com.github.libretube.api.RetrofitInstance.resetApi()
 
                             Snackbar.make(
                                 binding.root,
-                                "Enlace caído. Reconectando...",
+                                "Buscando servidor estable: ${nextInstance.substringAfter("//")}",
                                 Snackbar.LENGTH_SHORT
                             ).show()
 
                             playerController.stop()
                             playerController.clearMediaItems()
-                            playNextVideo(videoId)
+                            
+                            // Reintento con ligero retardo para asegurar cambio de IP/DNS
+                            handler.postDelayed({
+                                playNextVideo(videoId)
+                            }, 300)
                         } else {
                             Snackbar.make(
                                 binding.root,
-                                "Los servidores están saturados en este momento.",
+                                "Los servidores de la comunidad están saturados.",
                                 Snackbar.LENGTH_LONG
                             ).show()
                         }

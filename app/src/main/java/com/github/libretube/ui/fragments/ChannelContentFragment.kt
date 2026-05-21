@@ -55,13 +55,18 @@ class ChannelContentFragment : DynamicLayoutManagerFragment(R.layout.fragment_ch
         val channelId = arguments.getString(IntentData.channelId)!!
 
         val tabData = arguments.parcelable<ChannelTab>(IntentData.tabData)
+        val videoList = arguments.parcelableArrayList<StreamItem>(IntentData.videoList)
 
-        if (tabData?.data.isNullOrEmpty()) {
+        // Identificar si es la pestaña de videos (por data vacía o por nombre)
+        val isVideosTab = tabData?.data.isNullOrEmpty() || 
+                          tabData?.name.equals(getString(R.string.videos), ignoreCase = true)
+
+        if (isVideosTab && !videoList.isNullOrEmpty()) {
             var nextPage = arguments.getString(IntentData.nextPage)
             var isLoading = false
 
             val channelAdapter = VideosAdapter(showChannelInfo = false).also {
-                it.submitList(arguments.parcelableArrayList<StreamItem>(IntentData.videoList)!!)
+                it.submitList(videoList)
             }
             binding.channelRecView.adapter = channelAdapter
             binding.progressBar.isGone = true
@@ -86,7 +91,7 @@ class ChannelContentFragment : DynamicLayoutManagerFragment(R.layout.fragment_ch
                     }
                 }
             }
-        } else {
+        } else if (!tabData?.data.isNullOrEmpty()) {
             val searchChannelAdapter = SearchResultsAdapter()
             binding.channelRecView.adapter = searchChannelAdapter
 
@@ -110,6 +115,8 @@ class ChannelContentFragment : DynamicLayoutManagerFragment(R.layout.fragment_ch
                     }
                 }
             }
+        } else {
+            binding.progressBar.isGone = true
         }
 
         binding.channelRecView.addOnScrollListener(object : RecyclerView.OnScrollListener() {

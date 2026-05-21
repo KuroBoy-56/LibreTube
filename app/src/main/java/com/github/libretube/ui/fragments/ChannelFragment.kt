@@ -41,7 +41,6 @@ class ChannelFragment : Fragment(R.layout.fragment_channel) {
 
     private var channelId: String? = null
     private var channelName: String? = null
-    private var channelAdapter: VideosAdapter? = null
     private var isLoading = true
 
     private lateinit var channelContentAdapter: ChannelContentAdapter
@@ -53,7 +52,6 @@ class ChannelFragment : Fragment(R.layout.fragment_channel) {
     private val tabNamesMap = mapOf(
         VIDEOS_TAB_KEY to R.string.videos,
         "shorts" to R.string.yt_shorts,
-        "livestreams" to R.string.livestreams,
         "playlists" to R.string.playlists,
         "albums" to R.string.albums
     )
@@ -199,41 +197,76 @@ class ChannelFragment : Fragment(R.layout.fragment_channel) {
             )
         }
 
-        channelAdapter = VideosAdapter(showChannelInfo = false).also {
-            it.submitList(response.relatedStreams)
-        }
+        // --- MANEJO ROBUSTO DE PESTAÑAS ---
         tabList.clear()
+        val serverTabs = response.tabs
+        
+        var finalStreams = response.relatedStreams
+        
+        // --- FALLBACK DE BÚSQUEDA SI NO HAY VÍDEOS ---
+        if (finalStreams.isEmpty()) {
+            try {
+                val searchQuery = response.name ?: channelName ?: ""
+                if (searchQuery.isNotEmpty()) {
+                    val searchResult = withContext(Dispatchers.IO) {
+                        MediaServiceRepository.instance.getSearchResults(searchQuery, "videos")
+                    }
+                    finalStreams = searchResult.items
+                        .filter { it.type == "stream" }
+                        .map { it.toStreamItem() }
+                        .sortedByDescending { it.uploaded } // Ordenar por fecha
+                }
+            } catch (e: Exception) {
+                // Silently fail search fallback
+            }
+        } else {
+            // Ordenar streams normales por fecha también
+            finalStreams = finalStreams.sortedByDescending { it.uploaded }
+        }
 
-        // SIEMPRE agregar la pestaña de videos al inicio con los streams relacionados iniciales
-        tabList.add(ChannelTab(getString(R.string.videos), ""))
+        // Identificar la pestaña de videos del servidor (si existe)
+        val serverVideosTab = serverTabs.find { 
+            it.name.equals("videos", ignoreCase = true) || 
+            it.name.equals(VIDEOS_TAB_KEY, ignoreCase = true) ||
+            it.data.contains("videos", ignoreCase = true) 
+        }
+        
+        // Asegurar que la pestaña de Vídeos sea siempre la primera
+        val videosTabName = getString(R.string.videos)
+        // Usar los datos de la pestaña del servidor si existen, sino usar "" para fallback a relatedStreams
+        val videosTabData = serverVideosTab?.data ?: ""
+        tabList.add(ChannelTab(videosTabName, videosTabData))
 
-        val tabs = response.tabs
-        for (channelTab in tabs) {
-            val tabName = tabNamesMap[channelTab.name]?.let { getString(it) }
-                ?: channelTab.name.replaceFirstChar(Char::titlecase)
+        // Agregar el resto de pestañas (EXCLUYENDO directos)
+        for (serverTab in serverTabs) {
+            // Saltamos la de videos porque ya la agregamos
+            if (serverTab == serverVideosTab) continue
             
-            // Evitar duplicar la pestaña de videos si ya viene en la lista de tabs
-            if (tabName.equals(getString(R.string.videos), ignoreCase = true) || 
-                channelTab.data.contains("videos", ignoreCase = true)) {
+            // Saltamos explícitamente cualquier pestaña de directos/live
+            if (serverTab.name.equals("livestreams", ignoreCase = true) ||
+                serverTab.name.equals("live", ignoreCase = true) ||
+                serverTab.data.contains("live", ignoreCase = true)) {
                 continue
             }
             
-            tabList.add(ChannelTab(tabName, channelTab.data))
+            val tabName = tabNamesMap[serverTab.name.lowercase()]?.let { getString(it) }
+                ?: serverTab.name.replaceFirstChar(Char::titlecase)
+            
+            tabList.add(ChannelTab(tabName, serverTab.data))
         }
 
         channelContentAdapter = ChannelContentAdapter(
             tabList,
-            response.relatedStreams,
+            finalStreams,
             response.nextpage,
             channelId,
+            response.name ?: channelName,
             this@ChannelFragment
         )
         binding.pager.adapter = channelContentAdapter
         TabLayoutMediator(binding.tabParent, binding.pager) { tab, position ->
             tab.text = tabList[position].name
         }.attach()
-
-        channelContentAdapter.notifyDataSetChanged()
     }
 
     companion object {
@@ -246,6 +279,7 @@ class ChannelContentAdapter(
     private val videos: List<StreamItem>,
     private val nextPage: String?,
     private val channelId: String?,
+    private val channelName: String?,
     fragment: Fragment
 ) : FragmentStateAdapter(fragment) {
     override fun getItemCount() = list.size
@@ -255,6 +289,7 @@ class ChannelContentAdapter(
             IntentData.tabData to list[position],
             IntentData.videoList to videos.toMutableList(),
             IntentData.channelId to channelId,
+            IntentData.channelName to channelName,
             IntentData.nextPage to nextPage
         )
     }

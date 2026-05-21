@@ -27,6 +27,7 @@ import com.github.libretube.extensions.toastFromMainThread
 import com.github.libretube.extensions.updateParameters
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.PlayerHelper.getSubtitleRoleFlags
+import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.helpers.ProxyHelper
 import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.util.DeArrowUtil
@@ -67,14 +68,22 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
     private val playerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
-            if (retryCount < 2) {
+            // Rotación inmediata y agresiva ante cualquier error de enlace
+            if (retryCount < 8) { 
                 retryCount++
-                Log.w(TAG(), "Player error: ${error.errorCodeName}. Retrying ($retryCount/2)...")
+                Log.w(TAG(), "Playback failed (${error.errorCodeName}). Rotating to a more stable community server ($retryCount/8)...")
+                
+                // Forzar rotación a una instancia con mejor reputación
+                PreferenceHelper.rotateInstance()
+                com.github.libretube.api.RetrofitInstance.resetApi()
+                
                 scope.launch {
+                    // Pequeña espera para permitir que la nueva instancia respire
+                    kotlinx.coroutines.delay(500)
                     startPlayback()
                 }
             } else {
-                toastFromMainThread(error.localizedMessage ?: "Unknown error")
+                toastFromMainThread("Todos los servidores están bajo mantenimiento. Inténtalo más tarde.")
             }
         }
 
@@ -148,7 +157,14 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     }
                 }  catch (e: Exception) {
                     Log.e(TAG(), e.stackTraceToString())
-                    toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                    if (retryCount < 5) {
+                        retryCount++
+                        PreferenceHelper.rotateInstance()
+                        com.github.libretube.api.RetrofitInstance.resetApi()
+                        scope.launch { startPlayback() }
+                    } else {
+                        toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                    }
                     return@withContext null
                 }
             } ?: return@launch
@@ -272,7 +288,17 @@ open class OnlinePlayerService : AbstractPlayerService() {
             }
             // NO STREAM FOUND
             else -> {
-                toastFromMainThread(R.string.unknown_error)
+                if (retryCount < 5) {
+                    retryCount++
+                    Log.w(TAG(), "No stream found. Rotating instance and retrying ($retryCount/5)...")
+                    PreferenceHelper.rotateInstance()
+                    com.github.libretube.api.RetrofitInstance.resetApi()
+                    scope.launch {
+                        startPlayback()
+                    }
+                } else {
+                    toastFromMainThread(R.string.unknown_error)
+                }
                 return
             }
         }

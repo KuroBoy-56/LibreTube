@@ -83,10 +83,11 @@ object PreferenceHelper {
         settings = getDefaultSharedPreferences(context)
         authSettings = getAuthenticationPreferences(context)
 
-        // Servidor fijo y estable
-        if (getString("api_url", "").isEmpty()) {
+        // Servidor principal fijo y ultra estable de la comunidad (Kavin)
+        if (getString("api_url", "").isEmpty() || getString("api_url", "").contains("tokhmi")) {
             settings.edit(commit = true) {
                 putString("api_url", "https://pipedapi.kavin.rocks")
+                putString("selectInstance", "https://pipedapi.kavin.rocks")
                 putString("frontend_url", "https://piped.video")
             }
         }
@@ -174,11 +175,13 @@ object PreferenceHelper {
     }
 
     fun rotateInstance(): String {
+        // Lista de servidores más estables y valorados por la comunidad
         val backupServers = listOf(
             "https://pipedapi.kavin.rocks",
             "https://pipedapi.adminforge.de",
-            "https://pi.pjsf.fr",
-            "https://pipedapi.tokhmi.xyz"
+            "https://pipedapi.astoria.rocks",
+            "https://pipedapi.qis.at",
+            "https://pi.pjsf.fr"
         )
         val current = getString(PreferenceKeys.FETCH_INSTANCE, "https://pipedapi.kavin.rocks")
         val currentIndex = backupServers.indexOf(current)
