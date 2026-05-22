@@ -5,11 +5,11 @@ import android.widget.TextView
 import com.github.libretube.R
 
 fun TextView.setFormattedDuration(duration: Long, isShort: Boolean?, uploadDate: Long) {
-    // Si la duración es irracionalmente grande (ej. > 1,000,000), probablemente esté en ms
-    // Pero si es extremadamente grande (ej. > 1,000,000,000), es basura o error
+    // FILTRO ANTICUTRE: Bloqueo de cifras absurdas de 10 números
+    // Si la duración > 24h (86400s), probablemente sean datos basura de un enlace roto
     val safeDuration = when {
-        duration > 1_000_000_000L -> -1L // Basura, mostrar En vivo o nada
-        duration > 1_000_000L -> duration / 1000L // Probablemente ms
+        duration > 86400L -> -1L // Marcar como basura/en vivo
+        duration < 0L -> -1L
         else -> duration
     }
     

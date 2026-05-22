@@ -19,12 +19,13 @@ open class PipedMediaServiceRepository : MediaServiceRepository {
 
     private suspend fun <T> runWithFallback(block: suspend () -> T): T {
         var lastException: Exception? = null
-        val maxRetries = 2 // Reducido a 2 reintentos para evitar carga infinita
+        val maxRetries = 10 // Aumentado al máximo para cubrir casi todos los servidores estables conocidos
         repeat(maxRetries) { 
             try {
                 return block()
             } catch (e: Exception) {
                 lastException = e
+                // Rotación inteligente: cambia de servidor y limpia la API
                 PreferenceHelper.rotateInstance()
                 RetrofitInstance.resetApi()
             }

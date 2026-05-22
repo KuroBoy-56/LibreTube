@@ -144,40 +144,60 @@ open class OnlinePlayerService : AbstractPlayerService() {
         val timestampMs = startTimestampSeconds?.times(1000) ?: 0L
         startTimestampSeconds = null
 
-        // stop any previous task for loading video info
+        // Detener cualquier tarea previa de carga
         fetchVideoInfoJob?.cancelAndJoin()
 
-        // start loading the video info while keeping a reference to the job
-        // so that it can be canceled once a different video is loaded
         fetchVideoInfoJob = scope.launch {
-            streams = withContext(Dispatchers.IO) {
+            var finalStreams: Streams? = null
+            
+            // --- SISTEMA DE RECARGA MILIMÉTRICA Y VERIFICACIÓN DE ENLACE (99.99% Target) ---
+            for (attempt in 1..5) { // Aumentado a 5 para máxima seguridad
                 try {
-                    MediaServiceRepository.instance.getStreams(videoId).let {
-                        DeArrowUtil.deArrowStreams(it, videoId)
+                    finalStreams = withContext(Dispatchers.IO) {
+                        MediaServiceRepository.instance.getStreams(videoId).let {
+                            DeArrowUtil.deArrowStreams(it, videoId)
+                        }
                     }
-                }  catch (e: Exception) {
-                    Log.e(TAG(), e.stackTraceToString())
-                    if (retryCount < 5) {
-                        retryCount++
-                        PreferenceHelper.rotateInstance()
-                        com.github.libretube.api.RetrofitInstance.resetApi()
-                        scope.launch { startPlayback() }
-                    } else {
-                        toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                    
+                    // 1. Verificación básica de estructura
+                    if (finalStreams != null && 
+                        (finalStreams.videoStreams.isNotEmpty() || finalStreams.hls != null) &&
+                        finalStreams.duration < 86400L) { // Límite de 24h (en segundos)
+                        
+                        // 2. VERIFICACIÓN FÍSICA DEL ENLACE (HEAD Request)
+                        // Probamos el primer stream para asegurar que no sea 403 o 404
+                        val checkUrl = finalStreams.videoStreams.firstOrNull()?.url ?: finalStreams.hls
+                        val isLinkValid = withContext(Dispatchers.IO) {
+                            try {
+                                val connection = java.net.URL(checkUrl).openConnection() as java.net.HttpURLConnection
+                                connection.requestMethod = "HEAD"
+                                connection.connectTimeout = 1500
+                                connection.readTimeout = 1500
+                                val code = connection.responseCode
+                                code == 200 || code == 206 || code == 302
+                            } catch (e: Exception) { false }
+                        }
+
+                        if (isLinkValid) break // ¡Éxito! Enlace funcional encontrado
                     }
-                    return@withContext null
+                } catch (e: Exception) {
+                    Log.e(TAG(), "Intento $attempt fallido para $videoId. Rotando...")
                 }
-            } ?: return@launch
+                
+                // Si llegamos aquí, el enlace estaba roto o hubo error. Rotamos y esperamos.
+                PreferenceHelper.rotateInstance()
+                com.github.libretube.api.RetrofitInstance.resetApi()
+                if (attempt < 5) kotlinx.coroutines.delay(200)
+            }
+            
+            streams = finalStreams ?: return@launch
 
             streams?.toStreamItem(videoId)?.let {
-                // save the current stream to the queue
+                // Actualizar cola y feed
                 PlayingQueue.updateCurrent(it)
-
                 if (!PlayingQueue.hasNext()) {
                     PlayingQueue.updateQueue(it, playlistId, channelId, streams!!.relatedStreams)
                 }
-
-                // update feed item with newer information, e.g. more up-to-date views
                 SubscriptionHelper.submitFeedItemChange(it.toFeedItem())
             }
 

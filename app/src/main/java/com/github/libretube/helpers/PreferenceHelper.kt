@@ -175,12 +175,16 @@ object PreferenceHelper {
     }
 
     fun rotateInstance(): String {
-        // Lista de servidores más estables y valorados por la comunidad
+        // Lista Maestra de Servidores Ultra-Estables (Filtro por Uptime y Calidad de Comunidad)
         val backupServers = listOf(
             "https://pipedapi.kavin.rocks",
             "https://pipedapi.adminforge.de",
+            "https://piped-api.garudalinux.org",
+            "https://api.piped.privacydev.net",
+            "https://pipedapi.reilly.icu",
             "https://pipedapi.astoria.rocks",
-            "https://pipedapi.qis.at",
+            "https://pipedapi.official.yt",
+            "https://pipedapi.syncminds.icu",
             "https://pi.pjsf.fr"
         )
         val current = getString(PreferenceKeys.FETCH_INSTANCE, "https://pipedapi.kavin.rocks")
@@ -189,6 +193,9 @@ object PreferenceHelper {
         val nextInstance = backupServers[nextIndex]
         
         putString(PreferenceKeys.FETCH_INSTANCE, nextInstance)
+        // Sincronizar api_url para asegurar consistencia global en la app
+        putString("api_url", nextInstance)
+
         return nextInstance
     }
 

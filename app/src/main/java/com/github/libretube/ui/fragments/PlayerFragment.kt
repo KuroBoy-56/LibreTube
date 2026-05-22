@@ -328,8 +328,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             try {
                 activity?.runOnUiThread {
                     if (_binding != null && isAdded) {
-                        // Rotación automática con servidores de alta disponibilidad
-                        if (retryCount < 8) {
+                        // El servicio ya intenta 5 veces. Si ExoPlayer falla, forzamos una última rotación profunda.
+                        if (retryCount < 3) {
                             retryCount++
 
                             val nextInstance = com.github.libretube.helpers.PreferenceHelper.rotateInstance()
@@ -337,21 +337,20 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
                             Snackbar.make(
                                 binding.root,
-                                "Buscando servidor estable: ${nextInstance.substringAfter("//")}",
+                                "Reestableciendo conexión segura...",
                                 Snackbar.LENGTH_SHORT
                             ).show()
 
                             playerController.stop()
                             playerController.clearMediaItems()
                             
-                            // Reintento con ligero retardo para asegurar cambio de IP/DNS
                             handler.postDelayed({
                                 playNextVideo(videoId)
-                            }, 300)
+                            }, 500)
                         } else {
                             Snackbar.make(
                                 binding.root,
-                                "Los servidores de la comunidad están saturados.",
+                                "Error de red. Por favor, intenta de nuevo en unos segundos.",
                                 Snackbar.LENGTH_LONG
                             ).show()
                         }
@@ -545,7 +544,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private fun fixDurationDisplay() {
         if (!::playerController.isInitialized) return
         val dur = playerController.duration
-        if (dur == C.TIME_UNSET || dur < 0 || dur > 31536000000L) {
+        // Límite estricto de 24 horas (86,400,000 ms) para evitar cifras de 10 números
+        if (dur == C.TIME_UNSET || dur < 0 || dur > 86400000L) {
             playerControlsBinding.duration.text = ""
             playerControlsBinding.position.text = if (::streams.isInitialized && streams.isLive) "En vivo" else "00:00"
         }
