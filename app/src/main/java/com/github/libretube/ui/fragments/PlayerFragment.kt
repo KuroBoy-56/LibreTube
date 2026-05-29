@@ -213,6 +213,12 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private var bufferingTimeoutTask: Runnable? = null
 
     private var retryCount = 0
+    private val backupServers = listOf(
+        "https://pipedapi.tokhmi.xyz",
+        "https://pipedapi.adminforge.de",
+        "https://pi.pjsf.fr",
+        "https://pipedapi.kavin.rocks"
+    )
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -277,7 +283,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
                 if (bufferingTimeoutTask == null) {
                     bufferingTimeoutTask = Runnable {
                         if (_binding != null && isAdded) {
-                            Snackbar.make(binding.root, "Cargando contenido...", Snackbar.LENGTH_SHORT).show()
+                            // SI EL BUFFER TARDA MUCHO, ES UN ENLACE ROTO O INSTANCIA LENTA
+                            // Forzamos un error de reproducción para activar la rotación automática
+                            onPlayerError(PlaybackException(null, null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
                         }
                     }
                 }
@@ -328,29 +336,25 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             try {
                 activity?.runOnUiThread {
                     if (_binding != null && isAdded) {
-                        // El servicio ya intenta 5 veces. Si ExoPlayer falla, forzamos una última rotación profunda.
-                        if (retryCount < 3) {
+                        if (retryCount < backupServers.size) {
+                            val nextServer = backupServers[retryCount]
                             retryCount++
 
-                            val nextInstance = com.github.libretube.helpers.PreferenceHelper.rotateInstance()
-                            com.github.libretube.api.RetrofitInstance.resetApi()
+                            com.github.libretube.helpers.PreferenceHelper.putString("api_url", nextServer)
 
                             Snackbar.make(
                                 binding.root,
-                                "Reestableciendo conexión segura...",
+                                "Enlace caído. Reconectando...",
                                 Snackbar.LENGTH_SHORT
                             ).show()
 
                             playerController.stop()
                             playerController.clearMediaItems()
-                            
-                            handler.postDelayed({
-                                playNextVideo(videoId)
-                            }, 500)
+                            playNextVideo(videoId)
                         } else {
                             Snackbar.make(
                                 binding.root,
-                                "Error de red. Por favor, intenta de nuevo en unos segundos.",
+                                "Los servidores están saturados en este momento.",
                                 Snackbar.LENGTH_LONG
                             ).show()
                         }
@@ -544,9 +548,9 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     private fun fixDurationDisplay() {
         if (!::playerController.isInitialized) return
         val dur = playerController.duration
-        // Límite estricto de 24 horas (86,400,000 ms) para evitar cifras de 10 números
+        // Límite estricto para evitar que la UI se rompa con cifras gigantes
         if (dur == C.TIME_UNSET || dur < 0 || dur > 86400000L) {
-            playerControlsBinding.duration.text = ""
+            playerControlsBinding.duration.text = "00:00"
             playerControlsBinding.position.text = if (::streams.isInitialized && streams.isLive) "En vivo" else "00:00"
         }
     }

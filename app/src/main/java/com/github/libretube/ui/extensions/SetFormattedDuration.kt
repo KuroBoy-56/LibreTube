@@ -5,12 +5,12 @@ import android.widget.TextView
 import com.github.libretube.R
 
 fun TextView.setFormattedDuration(duration: Long, isShort: Boolean?, uploadDate: Long) {
-    // FILTRO ANTICUTRE: Bloqueo de cifras absurdas de 10 números
-    // Si la duración > 24h (86400s), probablemente sean datos basura de un enlace roto
-    val safeDuration = when {
-        duration > 86400L -> -1L // Marcar como basura/en vivo
-        duration < 0L -> -1L
-        else -> duration
+    // FILTRO RADICAL ANTI-CIFRAS GIGANTES (10 NÚMEROS)
+    // Cualquier duración superior a 24 horas (86400 segundos) es basura o error
+    val safeDuration = if (duration > 86400L || duration < 0L) {
+        -1L // Forzar estado En vivo o Limpio
+    } else {
+        duration
     }
     
     this.text = when {
@@ -20,7 +20,7 @@ fun TextView.setFormattedDuration(duration: Long, isShort: Boolean?, uploadDate:
         else -> try {
             DateUtils.formatElapsedTime(safeDuration)
         } catch (_: Exception) {
-            "--:--"
+            "00:00"
         }
     }
 }

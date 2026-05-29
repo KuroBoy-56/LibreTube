@@ -68,22 +68,14 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
     private val playerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
-            // Rotación inmediata y agresiva ante cualquier error de enlace
-            if (retryCount < 8) { 
+            if (retryCount < 2) {
                 retryCount++
-                Log.w(TAG(), "Playback failed (${error.errorCodeName}). Rotating to a more stable community server ($retryCount/8)...")
-                
-                // Forzar rotación a una instancia con mejor reputación
-                PreferenceHelper.rotateInstance()
-                com.github.libretube.api.RetrofitInstance.resetApi()
-                
+                Log.w(TAG(), "Player error: ${error.errorCodeName}. Retrying ($retryCount/2)...")
                 scope.launch {
-                    // Pequeña espera para permitir que la nueva instancia respire
-                    kotlinx.coroutines.delay(500)
                     startPlayback()
                 }
             } else {
-                toastFromMainThread("Todos los servidores están bajo mantenimiento. Inténtalo más tarde.")
+                toastFromMainThread(error.localizedMessage ?: "Unknown error")
             }
         }
 
@@ -144,60 +136,33 @@ open class OnlinePlayerService : AbstractPlayerService() {
         val timestampMs = startTimestampSeconds?.times(1000) ?: 0L
         startTimestampSeconds = null
 
-        // Detener cualquier tarea previa de carga
+        // stop any previous task for loading video info
         fetchVideoInfoJob?.cancelAndJoin()
 
+        // start loading the video info while keeping a reference to the job
+        // so that it can be canceled once a different video is loaded
         fetchVideoInfoJob = scope.launch {
-            var finalStreams: Streams? = null
-            
-            // --- SISTEMA DE RECARGA MILIMÉTRICA Y VERIFICACIÓN DE ENLACE (99.99% Target) ---
-            for (attempt in 1..5) { // Aumentado a 5 para máxima seguridad
+            streams = withContext(Dispatchers.IO) {
                 try {
-                    finalStreams = withContext(Dispatchers.IO) {
-                        MediaServiceRepository.instance.getStreams(videoId).let {
-                            DeArrowUtil.deArrowStreams(it, videoId)
-                        }
+                    MediaServiceRepository.instance.getStreams(videoId).let {
+                        DeArrowUtil.deArrowStreams(it, videoId)
                     }
-                    
-                    // 1. Verificación básica de estructura
-                    if (finalStreams != null && 
-                        (finalStreams.videoStreams.isNotEmpty() || finalStreams.hls != null) &&
-                        finalStreams.duration < 86400L) { // Límite de 24h (en segundos)
-                        
-                        // 2. VERIFICACIÓN FÍSICA DEL ENLACE (HEAD Request)
-                        // Probamos el primer stream para asegurar que no sea 403 o 404
-                        val checkUrl = finalStreams.videoStreams.firstOrNull()?.url ?: finalStreams.hls
-                        val isLinkValid = withContext(Dispatchers.IO) {
-                            try {
-                                val connection = java.net.URL(checkUrl).openConnection() as java.net.HttpURLConnection
-                                connection.requestMethod = "HEAD"
-                                connection.connectTimeout = 1500
-                                connection.readTimeout = 1500
-                                val code = connection.responseCode
-                                code == 200 || code == 206 || code == 302
-                            } catch (e: Exception) { false }
-                        }
-
-                        if (isLinkValid) break // ¡Éxito! Enlace funcional encontrado
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG(), "Intento $attempt fallido para $videoId. Rotando...")
+                }  catch (e: Exception) {
+                    Log.e(TAG(), e.stackTraceToString())
+                    toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                    return@withContext null
                 }
-                
-                // Si llegamos aquí, el enlace estaba roto o hubo error. Rotamos y esperamos.
-                PreferenceHelper.rotateInstance()
-                com.github.libretube.api.RetrofitInstance.resetApi()
-                if (attempt < 5) kotlinx.coroutines.delay(200)
-            }
-            
-            streams = finalStreams ?: return@launch
+            } ?: return@launch
 
             streams?.toStreamItem(videoId)?.let {
-                // Actualizar cola y feed
+                // save the current stream to the queue
                 PlayingQueue.updateCurrent(it)
+
                 if (!PlayingQueue.hasNext()) {
                     PlayingQueue.updateQueue(it, playlistId, channelId, streams!!.relatedStreams)
                 }
+
+                // update feed item with newer information, e.g. more up-to-date views
                 SubscriptionHelper.submitFeedItemChange(it.toFeedItem())
             }
 
@@ -269,9 +234,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
         super.navigateVideo(videoId)
     }
 
-    /**
-     * Sets the [MediaItem] with the [streams] into the [exoPlayer]
-     */
     private fun setStreamSource() {
         val streams = streams ?: return
 
@@ -308,17 +270,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
             }
             // NO STREAM FOUND
             else -> {
-                if (retryCount < 5) {
-                    retryCount++
-                    Log.w(TAG(), "No stream found. Rotating instance and retrying ($retryCount/5)...")
-                    PreferenceHelper.rotateInstance()
-                    com.github.libretube.api.RetrofitInstance.resetApi()
-                    scope.launch {
-                        startPlayback()
-                    }
-                } else {
-                    toastFromMainThread(R.string.unknown_error)
-                }
+                toastFromMainThread(R.string.unknown_error)
                 return
             }
         }

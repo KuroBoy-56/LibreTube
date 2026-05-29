@@ -1,5 +1,6 @@
 package com.github.libretube.api
 
+import android.util.Log
 import com.github.libretube.api.RetrofitInstance.PIPED_API_URL
 import com.github.libretube.api.obj.Channel
 import com.github.libretube.api.obj.ChannelTabResponse
@@ -12,6 +13,9 @@ import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.api.obj.Streams
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.helpers.PreferenceHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 
 open class PipedMediaServiceRepository : MediaServiceRepository {
@@ -19,18 +23,39 @@ open class PipedMediaServiceRepository : MediaServiceRepository {
 
     private suspend fun <T> runWithFallback(block: suspend () -> T): T {
         var lastException: Exception? = null
-        val maxRetries = 10 // Aumentado al máximo para cubrir casi todos los servidores estables conocidos
-        repeat(maxRetries) { 
+        val maxRetries = 6
+        repeat(maxRetries) { attempt ->
             try {
-                return block()
+                val result = block()
+                
+                // VERIFICACIÓN FÍSICA RELÁMPAGO (HEAD Request)
+                // Solo para extracción de videos: evita entregar enlaces muertos (403/404)
+                if (result is Streams) {
+                    val urlToVerify = result.hls ?: result.videoStreams.firstOrNull()?.url
+                    if (urlToVerify != null) {
+                        val isAlive = withContext(Dispatchers.IO) {
+                            try {
+                                val conn = java.net.URL(urlToVerify).openConnection() as java.net.HttpURLConnection
+                                conn.requestMethod = "HEAD"
+                                conn.connectTimeout = 1200 // Muy rápido para evitar carga infinita
+                                conn.readTimeout = 1200
+                                conn.responseCode in 200..399
+                            } catch (_: Exception) { false }
+                        }
+                        if (!isAlive) throw Exception("Enlace inestable")
+                    }
+                }
+                
+                return result
             } catch (e: Exception) {
                 lastException = e
-                // Rotación inteligente: cambia de servidor y limpia la API
                 PreferenceHelper.rotateInstance()
                 RetrofitInstance.resetApi()
+                // Pausa mínima para refrescar conexión
+                if (attempt < maxRetries - 1) delay(50) 
             }
         }
-        throw lastException ?: Exception("Error en PipedMediaServiceRepository")
+        throw lastException ?: Exception("Servidores de la comunidad no responden")
     }
 
     override suspend fun getTrending(region: String, category: TrendingCategory): List<StreamItem> = runWithFallback {

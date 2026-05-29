@@ -70,7 +70,7 @@ object PlayerHelper {
 
     const val MAXIMUM_PLAYBACK_SPEED = 8f
 
-    const val MAX_BUFFER_DELAY = 10 * 60 * 1000L
+    const val MAX_BUFFER_DELAY = 6000L // 6 segundos máximo de espera (estilo Vanced)
 
     val repeatModes = listOf(
         Player.REPEAT_MODE_OFF to R.string.repeat_mode_none,
@@ -364,7 +364,22 @@ object PlayerHelper {
         )
 
     fun getDefaultResolution(context: Context, isFullscreen: Boolean): Int? {
-        return Int.MAX_VALUE
+        val resolutionString = if (NetworkHelper.isNetworkMetered(context)) {
+            if (isFullscreen) {
+                PreferenceHelper.getString(PreferenceKeys.DEFAULT_RESOLUTION_MOBILE, "720p")
+            } else {
+                PreferenceHelper.getString("default_res_mobile_no_fullscreen", "")
+            }
+        } else {
+            if (isFullscreen) {
+                PreferenceHelper.getString(PreferenceKeys.DEFAULT_RESOLUTION, "720p")
+            } else {
+                PreferenceHelper.getString("default_res_no_fullscreen", "")
+            }
+        }
+
+        if (resolutionString == "") return null
+        return resolutionString.replace("p", "").toIntOrNull()
     }
 
     fun getIntentActionName(context: Context): String {

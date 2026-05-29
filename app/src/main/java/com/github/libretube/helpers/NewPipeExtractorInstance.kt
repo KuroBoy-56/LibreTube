@@ -12,5 +12,6 @@ object NewPipeExtractorInstance {
 
     fun init() {
         NewPipe.init(NewPipeDownloaderImpl())
+        org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor.setFetchIosClient(true)
     }
 }

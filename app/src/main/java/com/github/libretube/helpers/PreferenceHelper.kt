@@ -83,12 +83,20 @@ object PreferenceHelper {
         settings = getDefaultSharedPreferences(context)
         authSettings = getAuthenticationPreferences(context)
 
-        // Servidor principal fijo y ultra estable de la comunidad (Kavin)
-        if (getString("api_url", "").isEmpty() || getString("api_url", "").contains("tokhmi")) {
+        // Servidor fijo y estable (Kavin - El estándar de la comunidad)
+        if (getString("api_url", "").isEmpty() || getString("api_url", "").contains("pjsf")) {
             settings.edit(commit = true) {
                 putString("api_url", "https://pipedapi.kavin.rocks")
                 putString("selectInstance", "https://pipedapi.kavin.rocks")
                 putString("frontend_url", "https://piped.video")
+            }
+        }
+        
+        // Configurar 720p como resolución por defecto para nuevos usuarios
+        if (getString(PreferenceKeys.DEFAULT_RESOLUTION, "").isEmpty()) {
+            settings.edit(commit = true) {
+                putString(PreferenceKeys.DEFAULT_RESOLUTION, "720p")
+                putString(PreferenceKeys.DEFAULT_RESOLUTION_MOBILE, "720p")
             }
         }
     }
@@ -175,25 +183,21 @@ object PreferenceHelper {
     }
 
     fun rotateInstance(): String {
-        // Lista Maestra de Servidores Ultra-Estables (Filtro por Uptime y Calidad de Comunidad)
+        // SERVIDORES TOP 2024 (Máximo Uptime y Calidad)
         val backupServers = listOf(
-            "https://pipedapi.kavin.rocks",
             "https://pipedapi.adminforge.de",
-            "https://piped-api.garudalinux.org",
-            "https://api.piped.privacydev.net",
-            "https://pipedapi.reilly.icu",
-            "https://pipedapi.astoria.rocks",
+            "https://pi.pjsf.fr",
+            "https://api-piped.mha.fi",
             "https://pipedapi.official.yt",
-            "https://pipedapi.syncminds.icu",
-            "https://pi.pjsf.fr"
+            "https://pipedapi.astoria.rocks",
+            "https://pipedapi.kavin.rocks"
         )
-        val current = getString(PreferenceKeys.FETCH_INSTANCE, "https://pipedapi.kavin.rocks")
+        val current = getString(PreferenceKeys.FETCH_INSTANCE, "https://pipedapi.adminforge.de")
         val currentIndex = backupServers.indexOf(current)
         val nextIndex = (currentIndex + 1) % backupServers.size
         val nextInstance = backupServers[nextIndex]
         
         putString(PreferenceKeys.FETCH_INSTANCE, nextInstance)
-        // Sincronizar api_url para asegurar consistencia global en la app
         putString("api_url", nextInstance)
 
         return nextInstance
