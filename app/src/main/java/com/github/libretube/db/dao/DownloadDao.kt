@@ -94,6 +94,6 @@ interface DownloadDao {
     @Query("SELECT * FROM downloadplaylistvideoscrossref WHERE playlistId = :playlistId")
     suspend fun getVideoIdsFromPlaylist(playlistId: String): List<DownloadPlaylistVideosCrossRef>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSponsorBlockSegments(segments: List<DownloadSponsorBlockSegment>)
 }

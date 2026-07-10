@@ -161,7 +161,7 @@ class CustomExoPlayerView(
      */
     var currentWindow: Window? = null
 
-    private var selectedResolution: Int? = null
+    private var selectedResolution: Int? = 720
     var sponsorBlockAutoSkip = true
         private set
 
@@ -1064,7 +1064,7 @@ class CustomExoPlayerView(
         } else if (fullscreenResolution != null) {
             setPlayerResolution(fullscreenResolution!!)
         } else {
-            setPlayerResolution(Int.MAX_VALUE)
+            setPlayerResolution(720)
         }
     }
 

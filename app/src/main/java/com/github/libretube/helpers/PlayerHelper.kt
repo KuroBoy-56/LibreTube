@@ -368,17 +368,17 @@ object PlayerHelper {
             if (isFullscreen) {
                 PreferenceHelper.getString(PreferenceKeys.DEFAULT_RESOLUTION_MOBILE, "720p")
             } else {
-                PreferenceHelper.getString("default_res_mobile_no_fullscreen", "")
+                PreferenceHelper.getString("default_res_mobile_no_fullscreen", "720p")
             }
         } else {
             if (isFullscreen) {
                 PreferenceHelper.getString(PreferenceKeys.DEFAULT_RESOLUTION, "720p")
             } else {
-                PreferenceHelper.getString("default_res_no_fullscreen", "")
+                PreferenceHelper.getString("default_res_no_fullscreen", "720p")
             }
         }
 
-        if (resolutionString == "") return null
+        if (resolutionString == "" || resolutionString == "720p") return 720
         return resolutionString.replace("p", "").toIntOrNull()
     }
 
