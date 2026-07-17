@@ -22,6 +22,7 @@ import com.github.libretube.databinding.DialogDownloadBinding
 import com.github.libretube.extensions.TAG
 import com.github.libretube.extensions.getWhileDigit
 import com.github.libretube.extensions.sha256Sum
+import com.github.libretube.extensions.showCustomDownloadToast
 import com.github.libretube.extensions.toastFromMainDispatcher
 import com.github.libretube.helpers.DownloadHelper
 import com.github.libretube.helpers.PlayerHelper
@@ -150,6 +151,7 @@ class DownloadDialog : DialogFragment() {
                 subtitleCode = subtitle?.code
             )
             DownloadHelper.startDownloadService(requireContext(), downloadData)
+            requireContext().showCustomDownloadToast()
 
             dismiss()
         }
