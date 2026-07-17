@@ -66,9 +66,14 @@ class PlaylistDownloadEnqueueService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         nManager = getSystemService()!!
 
-        playlistId = intent!!.getStringExtra(IntentData.playlistId)!!
-        playlistName = intent.getStringExtra(IntentData.playlistName)!!
-        playlistType = intent.serializableExtra(IntentData.playlistType)!!
+        if (intent == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        playlistId = intent.getStringExtra(IntentData.playlistId) ?: run { stopSelf(); return START_NOT_STICKY }
+        playlistName = intent.getStringExtra(IntentData.playlistName) ?: "Playlist"
+        playlistType = intent.serializableExtra(IntentData.playlistType) ?: PlaylistType.PUBLIC
         maxVideoQuality = intent.getIntExtra(IntentData.maxVideoQuality, 0).takeIf { it != 0 }
         maxAudioQuality = intent.getIntExtra(IntentData.maxAudioQuality, 0).takeIf { it != 0 }
         captionLanguage = intent.getStringExtra(IntentData.captionLanguage)

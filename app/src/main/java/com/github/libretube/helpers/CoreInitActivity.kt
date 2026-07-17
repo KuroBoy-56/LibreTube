@@ -120,7 +120,7 @@ class CoreInitActivity : AppCompatActivity() {
         }
 
         val titleText = TextView(this).apply {
-            text = "YouTube Premium Mod"
+            text = "YouTube Premium"
             textSize = 22f
             setTextColor(textColorPrimary)
             setTypeface(Typeface.create("sans-serif", Typeface.BOLD))
@@ -228,7 +228,7 @@ class CoreInitActivity : AppCompatActivity() {
         }
 
         val versionText = TextView(this).apply {
-            text = "V2.0.5g"
+            text = "V2.5.0g"
             textSize = 12f
             setTextColor(textColorSecondary)
             gravity = Gravity.CENTER

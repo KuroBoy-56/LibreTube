@@ -135,16 +135,22 @@ class DownloadService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        val downloadId = intent?.getIntExtra("id", -1)
-        when (intent?.action) {
-            ACTION_DOWNLOAD_RESUME -> resume(downloadId!!)
-            ACTION_DOWNLOAD_PAUSE -> pause(downloadId!!)
-            ACTION_DOWNLOAD_STOP -> stop(downloadId!!)
+        
+        if (intent == null) {
+            if (downloadQueue.size() == 0) stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val downloadId = intent.getIntExtra("id", -1)
+        when (intent.action) {
+            ACTION_DOWNLOAD_RESUME -> resume(downloadId)
+            ACTION_DOWNLOAD_PAUSE -> pause(downloadId)
+            ACTION_DOWNLOAD_STOP -> stop(downloadId)
         }
 
         registerNetworkChangedCallback()
 
-        val downloadData = intent?.parcelableExtra<DownloadData>(IntentData.downloadData)
+        val downloadData = intent.parcelableExtra<DownloadData>(IntentData.downloadData)
             ?: return START_NOT_STICKY
         val videoId = downloadData.videoId
 

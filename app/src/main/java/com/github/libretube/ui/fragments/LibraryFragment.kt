@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
@@ -161,7 +162,8 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val historyRecords = DatabaseHolder.Database.watchHistoryDao().getAll()
-                val recentHistory = historyRecords.take(15).map { it.toStreamItem() }
+                // Invertimos para que lo más reciente esté primero y tomamos 20
+                val recentHistory = historyRecords.asReversed().take(20).map { it.toStreamItem() }
 
                 withContext(Dispatchers.Main) {
                     if (_binding != null) {
@@ -404,10 +406,13 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
     inner class HistoryCarouselAdapter(
         private val context: Context,
         private val onItemClick: (StreamItem) -> Unit
-    ) : RecyclerView.Adapter<HistoryCarouselAdapter.HistoryViewHolder>() {
+    ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
         private var items = listOf<StreamItem>()
         private val density = context.resources.displayMetrics.density
+
+        private val TYPE_ITEM = 0
+        private val TYPE_FOOTER = 1
 
         private fun dp(value: Int): Int = (value * density).toInt()
 
@@ -417,7 +422,54 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
             notifyDataSetChanged()
         }
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): HistoryViewHolder {
+        override fun getItemViewType(position: Int): Int {
+            return if (position < items.size) TYPE_ITEM else TYPE_FOOTER
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            if (viewType == TYPE_FOOTER) {
+                val layout = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    layoutParams = ViewGroup.MarginLayoutParams(dp(160), dp(130)).apply {
+                        setMargins(0, 0, dp(12), 0)
+                    }
+                    background = GradientDrawable().apply {
+                        setColor(Color.TRANSPARENT)
+                    }
+                    isClickable = true
+                    isFocusable = true
+                    val typedValue = android.util.TypedValue()
+                    context.theme.resolveAttribute(android.R.attr.selectableItemBackground, typedValue, true)
+                    setBackgroundResource(typedValue.resourceId)
+                }
+
+                val icon = ImageView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
+                    setImageResource(R.drawable.ic_history)
+                    val colorOnSurface = android.util.TypedValue()
+                    context.theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, colorOnSurface, true)
+                    imageTintList = android.content.res.ColorStateList.valueOf(colorOnSurface.data)
+                }
+
+                val text = TextView(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                        topMargin = dp(8)
+                    }
+                    text = "Ver todo"
+                    textSize = 14f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    val colorOnSurface = android.util.TypedValue()
+                    context.theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, colorOnSurface, true)
+                    setTextColor(colorOnSurface.data)
+                }
+
+                layout.addView(icon)
+                layout.addView(text)
+
+                return FooterViewHolder(layout)
+            }
+
             val layout = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -470,6 +522,9 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
                 maxLines = 2
                 ellipsize = TextUtils.TruncateAt.END
                 setTypeface(null, android.graphics.Typeface.BOLD)
+                val colorOnSurface = android.util.TypedValue()
+                context.theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, colorOnSurface, true)
+                setTextColor(colorOnSurface.data)
             }
 
             layout.addView(card)
@@ -478,26 +533,32 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
             return HistoryViewHolder(layout, thumbnail, title, durationText, durationCard)
         }
 
-        override fun onBindViewHolder(holder: HistoryViewHolder, position: Int) {
-            val item = items[position]
-            holder.title.text = item.title
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+            if (holder is HistoryViewHolder) {
+                val item = items[position]
+                holder.title.text = item.title
 
-            val durationValue = item.duration ?: 0L
+                val durationValue = item.duration ?: 0L
 
-            if (durationValue > 0L) {
-                holder.durationCard.isVisible = true
-                val minutes = durationValue / 60
-                val seconds = durationValue % 60
-                holder.duration.text = String.format("%02d:%02d", minutes, seconds)
-            } else {
-                holder.durationCard.isGone = true
+                if (durationValue > 0L) {
+                    holder.durationCard.isVisible = true
+                    val minutes = durationValue / 60
+                    val seconds = durationValue % 60
+                    holder.duration.text = String.format("%02d:%02d", minutes, seconds)
+                } else {
+                    holder.durationCard.isGone = true
+                }
+
+                ImageHelper.loadImage(item.thumbnail, holder.thumbnail, false)
+                holder.itemView.setOnClickListener { onItemClick(item) }
+            } else if (holder is FooterViewHolder) {
+                holder.itemView.setOnClickListener {
+                    findNavController().navigate(R.id.action_libraryFragment_to_watchHistoryFragment)
+                }
             }
-
-            ImageHelper.loadImage(item.thumbnail, holder.thumbnail, false)
-            holder.itemView.setOnClickListener { onItemClick(item) }
         }
 
-        override fun getItemCount() = items.size
+        override fun getItemCount() = items.size + 1
 
         inner class HistoryViewHolder(
             view: View,
@@ -506,5 +567,7 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
             val duration: TextView,
             val durationCard: MaterialCardView
         ) : RecyclerView.ViewHolder(view)
+
+        inner class FooterViewHolder(view: View) : RecyclerView.ViewHolder(view)
     }
 }

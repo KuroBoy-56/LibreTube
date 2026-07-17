@@ -1,14 +1,21 @@
 package com.github.libretube.ui.activities
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Dialog
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.Menu
@@ -72,12 +79,16 @@ import com.github.libretube.ui.models.SubscriptionsViewModel
 import com.github.libretube.ui.preferences.BackupRestoreSettings
 import com.github.libretube.ui.preferences.BackupRestoreSettings.Companion.FILETYPE_ANY
 import com.github.libretube.util.DnsResolverConfig
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -125,6 +136,12 @@ class MainActivity : AbstractPlayerHostActivity() {
         }
     }
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        // Si no se conceden, podemos mostrar un mensaje, pero no bloqueamos la app
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -148,6 +165,9 @@ class MainActivity : AbstractPlayerHostActivity() {
             finish()
             return
         }
+
+        checkAndRequestPermissions()
+        checkBatteryOptimizations()
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -463,6 +483,55 @@ class MainActivity : AbstractPlayerHostActivity() {
 
         dialog.setCancelable(false)
         dialog.show()
+    }
+
+    private fun checkAndRequestPermissions() {
+        val permissionsToRequest = mutableListOf<String>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            if (checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
+            }
+            if (checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
+            }
+        }
+
+        if (permissionsToRequest.isNotEmpty()) {
+            requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
+        }
+    }
+
+    private fun checkBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
+                val lastCheck = prefs.getLong("last_battery_optimization_check", 0)
+                if (System.currentTimeMillis() - lastCheck > 1000L * 60 * 60 * 24 * 7) { // Una vez por semana
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle("Optimización de Batería")
+                        .setMessage("Para que las descargas y la reproducción en segundo plano funcionen sin interrupciones, se recomienda desactivar la optimización de batería para esta aplicación.")
+                        .setPositiveButton("Configurar") { _, _ ->
+                            try {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:$packageName")
+                                }
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                startActivity(intent)
+                            }
+                        }
+                        .setNegativeButton("Más tarde", null)
+                        .show()
+                    prefs.edit().putLong("last_battery_optimization_check", System.currentTimeMillis()).apply()
+                }
+            }
+        }
     }
 
     private fun seguridad() {
