@@ -75,7 +75,10 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     startPlayback()
                 }
             } else {
-                toastFromMainThread(error.localizedMessage ?: "Unknown error")
+                if (com.github.libretube.helpers.NetworkHelper.isNetworkAvailable(this@OnlinePlayerService) && 
+                    error.errorCode != PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED) {
+                    toastFromMainThread(error.localizedMessage ?: "Unknown error")
+                }
             }
         }
 
@@ -149,7 +152,10 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     }
                 }  catch (e: Exception) {
                     Log.e(TAG(), e.stackTraceToString())
-                    toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                    if (com.github.libretube.helpers.NetworkHelper.isNetworkAvailable(this@OnlinePlayerService) && 
+                        e !is java.net.UnknownHostException) {
+                        toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                    }
                     return@withContext null
                 }
             } ?: return@launch
@@ -255,7 +261,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
             }
             // HLS as last fallback
             streams.hls != null -> {
-                val hlsMediaSourceFactory = HlsMediaSource.Factory(DefaultDataSource.Factory(this))
+                val hlsMediaSourceFactory = HlsMediaSource.Factory(PlayerHelper.getCacheDataSourceFactory(this))
                     .setPlaylistParserFactory(YoutubeHlsPlaylistParser.Factory())
 
                 val mediaItem = createMediaItem(

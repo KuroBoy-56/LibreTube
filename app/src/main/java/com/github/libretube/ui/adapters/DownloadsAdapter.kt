@@ -64,7 +64,7 @@ class DownloadsAdapter(
             videoTitle.text = download.title
             channelName.text = download.uploader
             videoInfo.text = download.uploadDate?.let { TextUtils.localizeDate(it) }
-            watchProgress.setWatchProgressLength(download.videoId, download.duration ?: 0)
+            watchProgress.isGone = true // Ocultar progreso de reproducción en descargas
 
             val downloadSize = items.sumOf { it.downloadSize }
 

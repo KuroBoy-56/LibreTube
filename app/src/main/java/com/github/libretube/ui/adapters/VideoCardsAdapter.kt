@@ -30,7 +30,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class VideoCardsAdapter(private val columnWidthDp: Float? = null) :
+class VideoCardsAdapter(
+    private val columnWidthDp: Float? = null,
+    var isOffline: Boolean = false
+) :
     ListAdapter<StreamItem, VideoCardsViewHolder>(DiffUtilItemCallback()) {
 
     override fun getItemViewType(position: Int): Int {
@@ -88,7 +91,7 @@ class VideoCardsAdapter(private val columnWidthDp: Float? = null) :
 
             channelImage.setOnClickListener { NavigationHelper.navigateChannel(root.context, video.uploaderUrl) }
             textViewChannel.setOnClickListener { NavigationHelper.navigateChannel(root.context, video.uploaderUrl) }
-            root.setOnClickListener { NavigationHelper.navigateVideo(root.context, PlayerData(videoId)) }
+            root.setOnClickListener { NavigationHelper.navigateVideo(root.context, PlayerData(videoId, isOffline = isOffline)) }
 
             root.setOnLongClickListener {
                 fragmentManager.setFragmentResultListener(VideoOptionsBottomSheet.VIDEO_OPTIONS_SHEET_REQUEST_KEY, activity) { _, _ ->

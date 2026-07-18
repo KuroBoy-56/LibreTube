@@ -20,8 +20,11 @@ import androidx.media3.common.Format
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -465,25 +468,34 @@ object PlayerHelper {
         return renderersFactory
     }
 
-    fun createPlayer(context: Context, trackSelector: DefaultTrackSelector): ExoPlayer {
-        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(userAgent)
-            .setAllowCrossProtocolRedirects(true)
-
-        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+    fun createPlayer(context: Context, trackSelector: DefaultTrackSelector, isOffline: Boolean = false): ExoPlayer {
+        val dataSourceFactory = if (isOffline) {
+            DefaultDataSource.Factory(context)
+        } else {
+            getCacheDataSourceFactory(context)
+        }
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
 
+        val defaultRes = getDefaultResolution(context, true) ?: 720
+
         trackSelector.parameters = trackSelector.buildUponParameters()
             .clearVideoSizeConstraints()
             .clearViewportSizeConstraints()
-            .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
-            .setForceHighestSupportedBitrate(true)
-            .setExceedVideoConstraintsIfNecessary(true)
+            .apply {
+                if (!isOffline) {
+                    setMaxVideoSize(Int.MAX_VALUE, defaultRes)
+                    setForceHighestSupportedBitrate(false)
+                    setExceedVideoConstraintsIfNecessary(false)
+                } else {
+                    setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                    setForceHighestSupportedBitrate(true)
+                    setExceedVideoConstraintsIfNecessary(true)
+                }
+            }
             .setExceedRendererCapabilitiesIfNecessary(true)
             .setAllowVideoMixedDecoderSupportAdaptiveness(true)
             .setAllowVideoNonSeamlessAdaptiveness(true)
@@ -495,7 +507,7 @@ object PlayerHelper {
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setTrackSelector(trackSelector)
             .setHandleAudioBecomingNoisy(true)
-            .setLoadControl(getLoadControl())
+            .setLoadControl(if (isOffline) DefaultLoadControl() else getLoadControl())
             .setAudioAttributes(audioAttributes, handleAudioFocus)
             .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
             .build()
@@ -504,12 +516,25 @@ object PlayerHelper {
             }
     }
 
+    @UnstableApi
+    fun getCacheDataSourceFactory(context: Context): DataSource.Factory {
+        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(userAgent)
+            .setAllowCrossProtocolRedirects(true)
+
+        return CacheDataSource.Factory()
+            .setCache(LibreTubeApp.getCache())
+            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(context, httpDataSourceFactory))
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
     fun getLoadControl(): LoadControl {
         return DefaultLoadControl.Builder()
-            .setBackBuffer(1000 * 60 * 3, true)
+            .setBackBuffer(1000 * 60 * 10, true) // 10 mins back buffer
             .setBufferDurationsMs(
                 MINIMUM_BUFFER_DURATION,
-                max(bufferingGoal, MINIMUM_BUFFER_DURATION),
+                max(bufferingGoal * 1000, MINIMUM_BUFFER_DURATION),
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
             )

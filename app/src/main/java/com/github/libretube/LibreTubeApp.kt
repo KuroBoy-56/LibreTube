@@ -3,6 +3,10 @@ package com.github.libretube
 import android.app.Application
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
 import androidx.work.ExistingPeriodicWorkPolicy
 import com.github.libretube.helpers.ImageHelper
 import com.github.libretube.helpers.NewPipeExtractorInstance
@@ -11,6 +15,7 @@ import com.github.libretube.helpers.PreferenceHelper
 import com.github.libretube.helpers.ProxyHelper
 import com.github.libretube.helpers.ShortcutHelper
 import com.github.libretube.util.ExceptionHandler
+import java.io.File
 
 class LibreTubeApp : Application() {
     override fun onCreate() {
@@ -27,6 +32,11 @@ class LibreTubeApp : Application() {
          */
         PreferenceHelper.initialize(applicationContext)
         PreferenceHelper.migrate()
+
+        /**
+         * Cleanup old cache entries (24h TTL)
+         */
+        cleanupOldCache()
 
         /**
          * Set the api and the auth api url
@@ -59,6 +69,21 @@ class LibreTubeApp : Application() {
         ShortcutHelper.createShortcuts(this)
 
         NewPipeExtractorInstance.init()
+    }
+
+    /**
+     * Cleans up the player cache if it's older than 24 hours.
+     */
+    private fun cleanupOldCache() {
+        val lastCleanup = PreferenceHelper.getLong("last_cache_cleanup", 0L)
+        val now = System.currentTimeMillis()
+        if (now - lastCleanup > 24 * 60 * 60 * 1000) {
+            val cacheDir = File(cacheDir, "exoplayer_cache")
+            if (cacheDir.exists()) {
+                cacheDir.deleteRecursively()
+            }
+            PreferenceHelper.putLong("last_cache_cleanup", now)
+        }
     }
 
     /**
@@ -107,6 +132,21 @@ class LibreTubeApp : Application() {
 
     companion object {
         lateinit var instance: LibreTubeApp
+        
+        @UnstableApi
+        private var simpleCache: SimpleCache? = null
+
+        @UnstableApi
+        @Synchronized
+        fun getCache(): SimpleCache {
+            if (simpleCache == null) {
+                val cacheDir = File(instance.cacheDir, "exoplayer_cache")
+                val evictor = LeastRecentlyUsedCacheEvictor(500 * 1024 * 1024) // 500MB max
+                val databaseProvider = StandaloneDatabaseProvider(instance)
+                simpleCache = SimpleCache(cacheDir, evictor, databaseProvider)
+            }
+            return simpleCache!!
+        }
 
         const val DOWNLOAD_CHANNEL_NAME = "download_service"
         const val PLAYLIST_DOWNLOAD_ENQUEUE_CHANNEL_NAME = "playlist_download_enqueue"

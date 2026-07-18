@@ -32,8 +32,8 @@ android {
         applicationId = "com.ytlatmpx.kuropremium"
         minSdk = 26
         targetSdk = 37
-        versionCode = 23
-        versionName = "2.5.0"
+        versionCode = 24
+        versionName = "2.5.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "app_name", "YouTube Mod")
     }
@@ -148,6 +148,8 @@ dependencies {
 
     /* ExoPlayer */
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.database)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.exoplayer.hls)
     implementation(libs.androidx.media3.exoplayer.dash)

@@ -38,6 +38,7 @@ object IntentData {
     const val videoStats = "videoStats"
     const val bitmapUrl = "bitmapUrl"
     const val isSubscribed = "isSubscribed"
+    const val isManualSelection = "isManualSelection"
     const val sortOptions = "sortOptions"
     const val hideWatched = "hideWatched"
     const val maxVideoQuality = "maxVideoQuality"

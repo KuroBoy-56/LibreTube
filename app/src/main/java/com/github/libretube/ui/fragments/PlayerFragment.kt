@@ -88,7 +88,6 @@ import com.github.libretube.ui.activities.NoInternetActivity
 import com.github.libretube.ui.adapters.VideoCardsAdapter
 import com.github.libretube.ui.base.BaseActivity
 import com.github.libretube.ui.dialogs.AddToPlaylistDialog
-import com.github.libretube.ui.dialogs.PlayOfflineDialog
 import com.github.libretube.ui.dialogs.ShareDialog
 import com.github.libretube.ui.extensions.animateDown
 import com.github.libretube.ui.extensions.getSystemInsets
@@ -333,6 +332,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
         override fun onPlayerError(error: PlaybackException) {
             super.onPlayerError(error)
+            if (isOffline) return
+
             try {
                 activity?.runOnUiThread {
                     if (_binding != null && isAdded) {
@@ -479,36 +480,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             }
         }
 
-        val localDownloadVersion = runBlocking(Dispatchers.IO) {
-            DatabaseHolder.Database.downloadDao().findById(videoId)
-        }
-
-        if (!isOffline && localDownloadVersion != null && createNewSession) {
-            val fragmentManager = requireActivity().supportFragmentManager
-
-            fragmentManager.setFragmentResultListener(
-                PlayOfflineDialog.PLAY_OFFLINE_DIALOG_REQUEST_KEY, viewLifecycleOwner
-            ) { _, bundle ->
-                isOffline = bundle.getBoolean(IntentData.isPlayingOffline)
-
-                attachToPlayerService(playerData, true)
-            }
-
-            val downloadInfo = DownloadHelper.extractDownloadInfoText(
-                requireContext(),
-                localDownloadVersion
-            ).toTypedArray()
-
-            PlayOfflineDialog().apply {
-                arguments = bundleOf(
-                    IntentData.videoId to videoId,
-                    IntentData.videoTitle to localDownloadVersion.download.title,
-                    IntentData.downloadInfo to downloadInfo
-                )
-            }.show(fragmentManager, null)
-        } else {
-            attachToPlayerService(playerData, createNewSession)
-        }
+        attachToPlayerService(playerData, createNewSession)
 
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -556,6 +528,10 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
     }
 
     private fun attachToPlayerService(playerData: PlayerData, startNewSession: Boolean) {
+        if (startNewSession) {
+            BackgroundHelper.stopBackgroundPlay(requireContext())
+        }
+
         val (serviceClass, args) = if (isOffline) {
             val isNoInternet = activity is NoInternetActivity
 
@@ -1254,6 +1230,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             streams.relatedStreams.filter { !it.title.isNullOrBlank() }
         }
 
+        relatedAdapter.isOffline = isOffline
         relatedAdapter.submitList(relatedStreams)
     }
 

@@ -2,6 +2,7 @@ package com.github.libretube.util
 
 import android.util.Log
 import android.util.LruCache
+import com.github.libretube.LibreTubeApp
 import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.obj.DeArrowContent
 import com.github.libretube.api.obj.Streams
@@ -22,6 +23,11 @@ object DeArrowUtil {
 
 
     private suspend fun fetchDeArrowContent(videoId: String): DeArrowContent? {
+        // SOLUCIÓN: Si no hay red, no intentamos ni siquiera consultar DeArrow
+        if (!com.github.libretube.helpers.NetworkHelper.isNetworkAvailable(LibreTubeApp.instance)) {
+            return null
+        }
+
         // prefer cached response, if available
         cache.get(videoId)?.let { return it }
 

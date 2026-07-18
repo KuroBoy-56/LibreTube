@@ -147,10 +147,11 @@ class WatchHistoryFragment : DynamicLayoutManagerFragment(R.layout.fragment_watc
         }
 
         viewModel.filteredWatchHistory.observe(viewLifecycleOwner) { history ->
-            binding.historyEmpty.isGone = history.isNotEmpty()
-            binding.watchHistoryRecView.isVisible = history.isNotEmpty()
-            binding.clear.isVisible = history.isNotEmpty()
-            binding.playAll.isVisible = history.isNotEmpty()
+            val isNotEmpty = history?.isNotEmpty() == true
+            binding.historyEmpty.isGone = isNotEmpty
+            binding.watchHistoryRecView.isVisible = isNotEmpty
+            binding.clear.isVisible = isNotEmpty
+            binding.playAll.isVisible = isNotEmpty
 
             watchHistoryAdapter.submitList(history)
         }

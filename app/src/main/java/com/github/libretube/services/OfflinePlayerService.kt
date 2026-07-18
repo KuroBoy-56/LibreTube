@@ -14,6 +14,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.source.SingleSampleMediaSource
+import com.github.libretube.api.obj.Streams
 import com.github.libretube.constants.IntentData
 import com.github.libretube.db.DatabaseHelper
 import com.github.libretube.db.DatabaseHolder.Database
@@ -23,6 +24,7 @@ import com.github.libretube.enums.FileType
 import com.github.libretube.extensions.parcelable
 import com.github.libretube.extensions.setMetadata
 import com.github.libretube.extensions.toAndroidUri
+import com.github.libretube.extensions.toastFromMainThread
 import com.github.libretube.extensions.updateParameters
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.parcelable.PlayerData
@@ -34,7 +36,6 @@ import com.github.libretube.util.PlayingQueue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlin.io.path.exists
 
@@ -49,23 +50,10 @@ open class OfflinePlayerService : AbstractPlayerService() {
     private var downloadWithItems: DownloadWithItems? = null
     private lateinit var playerData: PlayerData
 
-    private val scope = CoroutineScope(Dispatchers.Main)
-
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_ENDED) {
                 playNextVideo()
-            }
-
-            // add video to watch history when playback starts
-            if (playbackState == Player.STATE_READY && PlayerHelper.watchHistoryEnabled) {
-                scope.launch(Dispatchers.IO) {
-                    val watchHistoryItem =
-                        downloadWithItems?.download?.toStreamItem()?.toWatchHistoryItem(videoId)
-                    if (watchHistoryItem != null) {
-                        DatabaseHelper.addToWatchHistory(watchHistoryItem)
-                    }
-                }
             }
         }
     }
@@ -80,13 +68,15 @@ open class OfflinePlayerService : AbstractPlayerService() {
         PlayingQueue.clear()
 
         this.videoId = if (playerData.shuffle) {
-            runBlocking(Dispatchers.IO) {
-                if (playerData.downloadTab == DownloadTab.PLAYLIST) {
+            withContext(Dispatchers.IO) {
+                if (playerData.downloadTab == DownloadTab.PLAYLIST && playerData.playlistId != null) {
                     Database.downloadDao()
                         .getDownloadPlaylistById(playerData.playlistId!!).downloadVideos.randomOrNull()
-                } else {
+                } else if (playerData.downloadTab != null) {
                     Database.downloadDao().getAll().filterByTab(playerData.downloadTab!!)
                         .randomOrNull()?.download
+                } else {
+                    null
                 }
             }?.videoId
         } else {
@@ -96,6 +86,8 @@ open class OfflinePlayerService : AbstractPlayerService() {
         exoPlayer?.addListener(playerListener)
         trackSelector?.updateParameters {
             setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, isAudioOnlyPlayer)
+            clearVideoSizeConstraints()
+            setExceedVideoConstraintsIfNecessary(true)
         }
 
         fillQueue()
@@ -113,8 +105,21 @@ open class OfflinePlayerService : AbstractPlayerService() {
 
         val downloadWithItems = withContext(Dispatchers.IO) {
             Database.downloadDao().findById(videoId)
-        } ?: return
+        }
+        
+        if (downloadWithItems == null) {
+            withContext(Dispatchers.Main) {
+                toastFromMainThread("Video no encontrado en la base de datos local.")
+                exoPlayer?.stop()
+            }
+            return
+        }
+
         this.downloadWithItems = downloadWithItems
+
+        val streams = downloadWithItems.toStreams().apply {
+            relatedStreams = PlayingQueue.getStreams()
+        }
 
         PlayingQueue.updateCurrent(downloadWithItems.download.toStreamItem())
 
@@ -123,7 +128,7 @@ open class OfflinePlayerService : AbstractPlayerService() {
                 downloadWithItems.downloadSponsorBlockSegments.map { it.toSegment() }
             )
 
-            setMediaItem(downloadWithItems)
+            setMediaItem(downloadWithItems, streams)
 
             // automatically start playback when using the audio player
             exoPlayer?.playWhenReady = PlayerHelper.playAutomatically || isAudioOnlyPlayer
@@ -141,7 +146,7 @@ open class OfflinePlayerService : AbstractPlayerService() {
         }
     }
 
-    private fun setMediaItem(downloadWithItems: DownloadWithItems) {
+    private fun setMediaItem(downloadWithItems: DownloadWithItems, streams: Streams) {
         val downloadFiles = downloadWithItems.downloadItems.filter { it.path.exists() }
 
         val videoUri = downloadFiles.firstOrNull { it.type == FileType.VIDEO }?.path?.toAndroidUri()
@@ -151,7 +156,7 @@ open class OfflinePlayerService : AbstractPlayerService() {
         val videoSource = videoUri?.let { videoUri ->
             val videoItem = MediaItem.Builder()
                 .setUri(videoUri)
-                .setMetadata(downloadWithItems)
+                .setMetadata(streams, videoId)
                 .build()
 
             ProgressiveMediaSource.Factory(FileDataSource.Factory())
@@ -161,7 +166,7 @@ open class OfflinePlayerService : AbstractPlayerService() {
         val audioSource = audioUri?.let { audioUri ->
             val audioItem = MediaItem.Builder()
                 .setUri(audioUri)
-                .setMetadata(downloadWithItems)
+                .setMetadata(streams, videoId)
                 .build()
 
             ProgressiveMediaSource.Factory(FileDataSource.Factory())

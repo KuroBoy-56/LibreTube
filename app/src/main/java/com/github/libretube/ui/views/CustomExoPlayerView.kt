@@ -1080,7 +1080,8 @@ class CustomExoPlayerView(
 
         player.sendCustomCommand(
             AbstractPlayerService.runPlayerActionCommand, bundleOf(
-                PlayerCommand.SET_RESOLUTION.name to transformedResolution
+                PlayerCommand.SET_RESOLUTION.name to transformedResolution,
+                IntentData.isManualSelection to isSelectedByUser
             )
         )
 

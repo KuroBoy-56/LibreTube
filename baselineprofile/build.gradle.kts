@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.github.libretube.baselineprofile"
-    compileSdk = 36
+    compileSdk = 37
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,8 +21,8 @@ android {
     }
 
     defaultConfig {
-        minSdk = 28
-        targetSdk = 36
+        minSdk = 21
+        targetSdk = 37
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -16,10 +16,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 class WatchHistoryModel : ViewModel() {
-    private val watchHistory = MutableLiveData<List<WatchHistoryItem>>()
+    private val watchHistory = MutableLiveData<List<WatchHistoryItem>>(emptyList())
 
     private var currentPage = 1
     private var isLoading = false
@@ -29,8 +30,15 @@ class WatchHistoryModel : ViewModel() {
     )
 
     val filteredWatchHistory =
-        combine(watchHistory.asFlow(), selectedStatus) { history, _ -> history }
-            .flowOn(Dispatchers.IO).map { history -> history.filter { it.shouldIncludeByFilters() } }
+        combine(watchHistory.asFlow(), selectedStatus) { history, _ -> history ?: emptyList() }
+            .map { history ->
+                history.filter { item ->
+                    runBlocking(Dispatchers.IO) {
+                        item.shouldIncludeByFilters()
+                    }
+                }
+            }
+            .flowOn(Dispatchers.IO)
             .asLiveData()
 
     var selectedStatusFilter

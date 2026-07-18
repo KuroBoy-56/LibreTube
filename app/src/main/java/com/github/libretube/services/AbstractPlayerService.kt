@@ -94,6 +94,7 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            if (isOfflinePlayer) return
             // show a toast on errors
             toastFromMainThread(error.localizedMessage.orEmpty())
         }
@@ -171,10 +172,25 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
             }
 
             args.containsKey(PlayerCommand.SET_RESOLUTION.name) -> {
+                if (isOfflinePlayer) return
+
                 trackSelector?.updateParameters {
                     val resolution = args.getInt(PlayerCommand.SET_RESOLUTION.name)
-                    setMinVideoSize(Int.MIN_VALUE, resolution)
-                    setMaxVideoSize(Int.MAX_VALUE, resolution)
+                    val isManual = args.getBoolean(IntentData.isManualSelection, false)
+
+                    if (isManual) {
+                        // Forzar la resolución seleccionada manualmente
+                        setMinVideoSize(Int.MIN_VALUE, resolution)
+                        setMaxVideoSize(Int.MAX_VALUE, resolution)
+                        setForceHighestSupportedBitrate(true)
+                        setExceedVideoConstraintsIfNecessary(true)
+                    } else {
+                        // Resolución por defecto: máxima hasta el límite (ej. 720p)
+                        setMinVideoSize(0, 0)
+                        setMaxVideoSize(Int.MAX_VALUE, resolution)
+                        setForceHighestSupportedBitrate(false)
+                        setExceedVideoConstraintsIfNecessary(false)
+                    }
                 }
             }
 
@@ -376,7 +392,7 @@ abstract class AbstractPlayerService : MediaLibraryService(), MediaLibrarySessio
         val trackSelector = DefaultTrackSelectorWithAudioQualitySupport(this)
         this.trackSelector = trackSelector
 
-        val player = PlayerHelper.createPlayer(this, trackSelector)
+        val player = PlayerHelper.createPlayer(this, trackSelector, isOfflinePlayer)
         // prevent android from putting LibreTube to sleep when locked
         player.setWakeMode(if (isOfflinePlayer) C.WAKE_MODE_LOCAL else C.WAKE_MODE_NETWORK)
         player.addListener(playerListener)

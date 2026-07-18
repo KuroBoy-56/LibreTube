@@ -411,9 +411,6 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
         private var items = listOf<StreamItem>()
         private val density = context.resources.displayMetrics.density
 
-        private val TYPE_ITEM = 0
-        private val TYPE_FOOTER = 1
-
         private fun dp(value: Int): Int = (value * density).toInt()
 
         @SuppressLint("NotifyDataSetChanged")
@@ -422,54 +419,7 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
             notifyDataSetChanged()
         }
 
-        override fun getItemViewType(position: Int): Int {
-            return if (position < items.size) TYPE_ITEM else TYPE_FOOTER
-        }
-
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-            if (viewType == TYPE_FOOTER) {
-                val layout = LinearLayout(context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER
-                    layoutParams = ViewGroup.MarginLayoutParams(dp(160), dp(130)).apply {
-                        setMargins(0, 0, dp(12), 0)
-                    }
-                    background = GradientDrawable().apply {
-                        setColor(Color.TRANSPARENT)
-                    }
-                    isClickable = true
-                    isFocusable = true
-                    val typedValue = android.util.TypedValue()
-                    context.theme.resolveAttribute(android.R.attr.selectableItemBackground, typedValue, true)
-                    setBackgroundResource(typedValue.resourceId)
-                }
-
-                val icon = ImageView(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
-                    setImageResource(R.drawable.ic_history)
-                    val colorOnSurface = android.util.TypedValue()
-                    context.theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, colorOnSurface, true)
-                    imageTintList = android.content.res.ColorStateList.valueOf(colorOnSurface.data)
-                }
-
-                val text = TextView(context).apply {
-                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                        topMargin = dp(8)
-                    }
-                    text = "Ver todo"
-                    textSize = 14f
-                    setTypeface(null, android.graphics.Typeface.BOLD)
-                    val colorOnSurface = android.util.TypedValue()
-                    context.theme.resolveAttribute(com.google.android.material.R.attr.colorOnSurface, colorOnSurface, true)
-                    setTextColor(colorOnSurface.data)
-                }
-
-                layout.addView(icon)
-                layout.addView(text)
-
-                return FooterViewHolder(layout)
-            }
-
             val layout = LinearLayout(context).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
@@ -551,14 +501,10 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
 
                 ImageHelper.loadImage(item.thumbnail, holder.thumbnail, false)
                 holder.itemView.setOnClickListener { onItemClick(item) }
-            } else if (holder is FooterViewHolder) {
-                holder.itemView.setOnClickListener {
-                    findNavController().navigate(R.id.action_libraryFragment_to_watchHistoryFragment)
-                }
             }
         }
 
-        override fun getItemCount() = items.size + 1
+        override fun getItemCount() = items.size
 
         inner class HistoryViewHolder(
             view: View,
@@ -567,7 +513,5 @@ class LibraryFragment : DynamicLayoutManagerFragment(R.layout.fragment_library) 
             val duration: TextView,
             val durationCard: MaterialCardView
         ) : RecyclerView.ViewHolder(view)
-
-        inner class FooterViewHolder(view: View) : RecyclerView.ViewHolder(view)
     }
 }
