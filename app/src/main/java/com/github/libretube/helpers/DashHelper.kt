@@ -23,7 +23,7 @@ object DashHelper {
         val audioLocale: String? = null
     )
 
-    fun createManifest(streams: Streams): String {
+    fun createManifest(streams: Streams, supportsHdr: Boolean = false): String {
         val builder = builderFactory.newDocumentBuilder()
 
         val doc = builder.newDocument()
@@ -88,7 +88,7 @@ object DashHelper {
             adapSetElement.setAttribute("subsegmentAlignment", "true")
 
             if (adapSet.audioTrackId != null) {
-                adapSetElement.setAttribute("lang", adapSet.audioTrackId.substring(0, 2))
+                adapSetElement.setAttribute("lang", adapSet.audioTrackId.split('.')[0])
             } else if (adapSet.audioLocale != null) {
                 adapSetElement.setAttribute("lang", adapSet.audioLocale)
             }
@@ -112,7 +112,7 @@ object DashHelper {
             for (stream in adapSet.formats) {
                 val rep = let {
                     if (isVideo) {
-                        createVideoRepresentation(doc, stream)
+                        createVideoRepresentation(doc, stream, supportsHdr)
                     } else {
                         createAudioRepresentation(doc, stream)
                     }
@@ -124,7 +124,6 @@ object DashHelper {
         }
 
         mpd.appendChild(period)
-
         doc.appendChild(mpd)
 
         val domSource = DOMSource(doc)
@@ -184,7 +183,8 @@ object DashHelper {
 
     private fun createVideoRepresentation(
         doc: Document,
-        stream: PipedStream
+        stream: PipedStream,
+        supportsHdr: Boolean
     ): Element {
         val representation = doc.createElement("Representation")
         representation.setAttribute("codecs", stream.codec!!)
@@ -193,6 +193,10 @@ object DashHelper {
         representation.setAttribute("height", stream.height.toString())
         representation.setAttribute("maxPlayoutRate", "1")
         representation.setAttribute("frameRate", stream.fps.toString())
+
+        if (supportsHdr) {
+            representation.setAttribute("colorInfo", "hdr")
+        }
 
         val baseUrl = doc.createElement("BaseURL")
         baseUrl.appendChild(doc.createTextNode(stream.url!!))

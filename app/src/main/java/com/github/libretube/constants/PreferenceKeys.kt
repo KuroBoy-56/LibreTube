@@ -23,9 +23,9 @@ object PreferenceKeys {
     const val THEME_MODE = "theme_toggle"
     const val PURE_THEME = "pure_theme"
     const val ACCENT_COLOR = "accent_color"
+    const val LABEL_VISIBILITY = "label_visibility"
     const val GRID_COLUMNS_PORTRAIT = "grid"
     const val GRID_COLUMNS_LANDSCAPE = "grid_landscape"
-    const val LABEL_VISIBILITY = "label_visibility"
     const val APP_ICON = "icon_change"
     const val NEW_VIDEOS_BADGE = "new_videos_badge"
     const val PLAYLISTS_ORDER = "playlists_order"
@@ -45,6 +45,8 @@ object PreferenceKeys {
     // Player behavior
     const val AUTO_FULLSCREEN = "auto_fullscreen"
     const val AUTOPLAY = "autoplay"
+    const val PIP_ENABLED = "picture_in_picture"
+    const val PAUSE_ON_QUIT = "pause_on_quit"
     const val RELATED_STREAMS = "related_streams_toggle"
     const val PLAYBACK_SPEED = "playback_speed"
     const val FULLSCREEN_ORIENTATION = "fullscreen_orientation"
@@ -78,8 +80,6 @@ object PreferenceKeys {
     const val PLAY_AUTOMATICALLY = "play_automatically"
     const val FULLSCREEN_GESTURES = "fullscreen_gestures"
     const val SHOW_TIME_LEFT = "show_time_left"
-    const val ALLOW_PLAYBACK_DURING_CALL = "playback_during_call"
-    const val BEHAVIOR_WHEN_MINIMIZED = "behavior_when_minimized"
     const val REPEAT_MODE = "repeat_mode"
 
     // SponsorBlock
@@ -91,7 +91,6 @@ object PreferenceKeys {
 
     // Notifications
     const val NOTIFICATION_ENABLED = "notification_toggle"
-    const val SHOW_STREAM_THUMBNAILS = "show_stream_thumbnails"
     const val SHORTS_NOTIFICATIONS = "shorts_notifications"
     const val CHECKING_FREQUENCY = "checking_frequency"
     const val REQUIRED_NETWORK = "required_network"
@@ -111,7 +110,6 @@ object PreferenceKeys {
     // Advanced
     const val AUTOMATIC_UPDATE_CHECKS = "automatic_update_checks"
     const val DATA_SAVER_MODE = "data_saver_mode_key"
-    const val MAX_IMAGE_CACHE = "image_cache_size"
     const val RESET_SETTINGS = "reset_settings"
     const val CLEAR_SEARCH_HISTORY = "clear_search_history"
     const val CLEAR_WATCH_HISTORY = "clear_watch_history"
@@ -119,7 +117,6 @@ object PreferenceKeys {
     const val SHARE_WITH_TIME_CODE = "share_with_time_code"
     const val SELECTED_SHARE_HOST = "selected_share_host"
     const val CLEAR_BOOKMARKS = "clear_bookmarks"
-    const val MAX_CONCURRENT_DOWNLOADS = "max_parallel_downloads"
     const val EXTERNAL_DOWNLOAD_PROVIDER = "external_download_provider"
     const val FULL_LOCAL_MODE = "full_local_mode"
     const val LOCAL_RYD = "local_return_youtube_dislikes"
@@ -127,7 +124,6 @@ object PreferenceKeys {
     const val INCLUDE_TIMESTAMP_IN_BACKUP_FILENAME = "include_timestamp_in_filename"
 
     // History
-    const val WATCH_HISTORY_SIZE = "watch_history_size"
     const val SELECTED_HISTORY_STATUS_FILTER = "filter_history_status"
 
     // Internally saved data / not a preference

@@ -512,8 +512,6 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             onBackPressedCallback.isEnabled = isMiniPlayerVisible != true
         }
 
-        connectToPlayerView()
-
         toggleVideoInfoVisibility(false)
     }
 
@@ -564,6 +562,7 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
             playerController = it
             playerController.addListener(playerListener)
+            connectToPlayerView()
             updatePlayPauseButton()
             fixDurationDisplay()
 
@@ -1065,7 +1064,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
             commonPlayerViewModel,
             viewModel,
             viewLifecycleOwner,
-            this
+            this,
+            playerController
         )
     }
 

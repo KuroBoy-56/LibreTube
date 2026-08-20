@@ -7,6 +7,7 @@ import com.github.libretube.api.SubscriptionHelper
 import com.github.libretube.constants.PreferenceKeys
 import com.github.libretube.helpers.PreferenceHelper
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,14 +49,10 @@ fun TextView.setupSubscriptionButton(
 
     notificationBell?.setupNotificationBell(channelId)
 
-    setOnClickListener {
-        val willSubscribe = !subscribed
-        subscribed = willSubscribe
-        updateUIStateAndNotifyObservers()
-
+    val setSubscriptionState: (Boolean) -> Unit = { subscribe ->
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                if (willSubscribe) {
+                if (subscribe) {
                     SubscriptionHelper.subscribe(
                         channelId,
                         channelName,
@@ -66,7 +63,30 @@ fun TextView.setupSubscriptionButton(
                     SubscriptionHelper.unsubscribe(channelId)
                 }
             } catch (e: Exception) {
+                e.printStackTrace()
             }
+        }
+        subscribed = subscribe
+        updateUIStateAndNotifyObservers()
+    }
+
+    setOnClickListener {
+        CoroutineScope(Dispatchers.Main).launch {
+            val willSubscribe = !subscribed
+
+            if (!willSubscribe) {
+                Snackbar
+                    .make(
+                        rootView,
+                        context.getString(R.string.unsubscribe_snackbar_message, channelName),
+                        Snackbar.LENGTH_SHORT
+                    )
+                    .setAction(R.string.undo) {
+                        setSubscriptionState(true)
+                    }.show()
+            }
+
+            setSubscriptionState(willSubscribe)
         }
     }
 }

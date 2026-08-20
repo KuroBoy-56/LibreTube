@@ -49,7 +49,9 @@ data class Streams(
     val chapters: List<ChapterSegment> = emptyList(),
     val uploaderSubscriberCount: Long = 0,
     val previewFrames: List<PreviewFrames> = emptyList(),
-    var isShort: Boolean = false
+    var isShort: Boolean = false,
+    val serverAbrStreamingUrl: String? = null,
+    val videoPlaybackUstreamerConfig: String? = null
 ): Parcelable {
     @IgnoredOnParcel
     val isLive = livestream || duration <= 0
@@ -73,6 +75,7 @@ data class Streams(
         }
 
         if (!subCode.isNullOrEmpty()) {
+            // TODO: doesn't support track types, i.e. if there are two caption tracks for the same language
             val subtitle = subtitles.find { it.code == subCode }
             subtitle?.toDownloadItem(id)?.let { items.add(it) }
         }

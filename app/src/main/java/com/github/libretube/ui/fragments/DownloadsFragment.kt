@@ -141,6 +141,8 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
     private lateinit var downloadTab: DownloadTab
     private var downloadPlaylistId: String? = null
 
+    private val activeDownloadIds = mutableSetOf<Int>()
+
     private var selectedSortType
         get() = PreferenceHelper.getInt(
             PreferenceKeys.SELECTED_DOWNLOAD_SORT_TYPE,
@@ -195,31 +197,7 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                 currentSortOrder = {
                     DownloadSortingOrder.entries[selectedSortType]
                 }
-            ) {
-                var isDownloading = false
-                val ids = it.downloadItems
-                    .filter { item -> item.path.fileSize() < item.downloadSize }
-                    .map { item -> item.id }
-
-                if (!serviceConnection.isBound) {
-                    DownloadHelper.startDownloadService(requireContext())
-                    bindDownloadService(ids.toIntArray())
-                    return@DownloadsAdapter true
-                }
-
-                binder?.getService()?.let { service ->
-                    isDownloading = ids.any { id -> service.isDownloading(id) }
-
-                    ids.forEach { id ->
-                        if (isDownloading) {
-                            service.pause(id)
-                        } else {
-                            service.resume(id)
-                        }
-                    }
-                }
-                return@DownloadsAdapter isDownloading.not()
-            }
+            ) { !toggleDownload(it) }
         binding.downloadsRecView.adapter = adapter
 
         val filterOptions = DownloadSortingOrder.entries.map { getString(it.stringId) }
@@ -232,6 +210,7 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                 }
 
                 binding.playlistName.text = playlist.downloadPlaylist.title
+                binding.playlistName.isVisible = true
 
                 playlist.downloadVideos.map { it.videoId }
             }
@@ -285,6 +264,12 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
             toggleVisibilities()
         }
 
+        binding.resumeAll.setOnClickListener {
+            resumeAllDownloads()
+
+            binding.resumeAll.isGone = true
+        }
+
         binding.deleteAll.setOnClickListener {
             showDeleteAllDialog(binding.root.context, adapter)
         }
@@ -310,6 +295,41 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         }
     }
 
+    private fun toggleDownload(download: DownloadWithItems): Boolean {
+        val ids = download.downloadItems
+            .filter { item -> item.path.fileSize() < item.downloadSize }
+            .map { item -> item.id }
+
+        if (!serviceConnection.isBound) {
+            DownloadHelper.startDownloadService(requireContext())
+            bindDownloadService(ids.toIntArray())
+            return true
+        }
+
+        binder?.getService()?.let { service ->
+            val isDownloading = ids.any { id -> service.isDownloading(id) }
+
+            for (id in ids) {
+                if (isDownloading) {
+                    service.pause(id)
+                } else {
+                    service.resume(id)
+                }
+            }
+
+            return isDownloading
+        }
+        return false
+    }
+
+    private fun resumeAllDownloads() {
+        val intent = Intent(requireContext(), DownloadService::class.java)
+        intent.action = DownloadService.ACTION_RESUME_ALL
+        requireContext().startService(intent)
+
+        bindDownloadService()
+    }
+
     private fun submitDownloadList(items: List<DownloadWithItems>) {
         val sortOrder = DownloadSortingOrder.entries[selectedSortType]
         var sortedItems = sortDownloadWithItemsList(items, sortOrder)
@@ -328,9 +348,14 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         val binding = _binding ?: return
 
         val isEmpty = adapter.itemCount == 0
+        val hasIncomplete = adapter.currentList.any { download ->
+            download.downloadItems.any { !it.isFinished } &&
+                    download.downloadItems.none { activeDownloadIds.contains(it.id) }
+        }
         binding.downloadsEmpty.isVisible = isEmpty
         binding.downloadsContainer.isGone = isEmpty
         binding.deleteAll.isGone = isEmpty
+        binding.resumeAll.isVisible = hasIncomplete
         binding.shuffleAll.isGone = isEmpty
     }
 
@@ -353,10 +378,8 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
     }
 
     override fun onStart() {
-        if (DownloadService.IS_DOWNLOAD_RUNNING) {
-            val intent = Intent(requireContext(), DownloadService::class.java)
-            context?.bindService(intent, serviceConnection, 0)
-        }
+        if (DownloadService.IS_DOWNLOAD_RUNNING) bindDownloadService()
+
         super.onStart()
     }
 
@@ -375,6 +398,10 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         )
     }
 
+    /**
+     * Attach to running [DownloadService]. This should be called whenever it's possible that the service
+     * was stopped, so the connection has to be re-initiated.
+     */
     fun bindDownloadService(ids: IntArray? = null) {
         if (serviceConnection.isBound) return
 
@@ -389,6 +416,9 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
         }
         val view =
             _binding?.downloadsRecView?.findViewHolderForAdapterPosition(index) as? DownloadsViewHolder
+
+        if (status is DownloadStatus.Progress) activeDownloadIds.add(id)
+        else activeDownloadIds.remove(id)
 
         view?.binding?.apply {
             when (status) {
@@ -417,6 +447,8 @@ class DownloadsFragmentPage : DynamicLayoutManagerFragment(R.layout.fragment_dow
                 }
             }
         }
+
+        toggleVisibilities()
     }
 
     override fun onPause() {
@@ -518,6 +550,7 @@ class PlaylistDownloadsFragmentPage : Fragment(R.layout.fragment_download_conten
                 Database.downloadDao().getDownloadPlaylists()
             }
 
+            binding.downloadsEmpty.isVisible = downloadPlaylists.isEmpty()
             if (downloadPlaylists.isNotEmpty()) {
                 submitPlaylists(adapter, downloadPlaylists)
 

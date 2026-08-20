@@ -32,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import org.json.JSONObject
 import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.Page
 import org.schabi.newpipe.extractor.channel.ChannelInfo
@@ -54,7 +55,6 @@ import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.schabi.newpipe.extractor.stream.VideoStream
 import java.net.HttpURLConnection
 import java.net.URL
-import org.json.JSONObject
 import kotlin.time.toKotlinInstant
 
 
@@ -63,7 +63,8 @@ private fun VideoStream.toPipedStream() = PipedStream(
     codec = codec,
     format = format?.toString(),
     height = height,
-    width = width, quality = getResolution(),
+    width = width,
+    quality = getResolution(),
     mimeType = format?.mimeType,
     bitrate = bitrate,
     initStart = initStart,
@@ -71,7 +72,11 @@ private fun VideoStream.toPipedStream() = PipedStream(
     indexStart = indexStart,
     indexEnd = indexEnd,
     fps = fps,
-    contentLength = itagItem?.contentLength ?: 0L
+    durationMs = itagItem?.approxDurationMs,
+    contentLength = itagItem?.contentLength ?: 0L,
+    itag = itagItem?.id,
+    lastModified = itagItem?.lastModified,
+    xtags = itagItem?.xtags,
 )
 
 private fun AudioStream.toPipedStream() = PipedStream(
@@ -84,14 +89,26 @@ private fun AudioStream.toPipedStream() = PipedStream(
     initEnd = initEnd,
     indexStart = indexStart,
     indexEnd = indexEnd,
+    durationMs = itagItem?.approxDurationMs,
     contentLength = itagItem?.contentLength ?: 0L,
     codec = codec,
     audioTrackId = audioTrackId,
     audioTrackName = audioTrackName,
     audioTrackLocale = audioLocale?.toLanguageTag(),
     audioTrackType = audioTrackType?.name,
-    videoOnly = false
+    videoOnly = false,
+    itag = itagItem?.id,
+    lastModified = itagItem?.lastModified,
+    isDrc = itagItem?.isDrc,
+    xtags = itagItem?.xtags,
 )
+
+fun StreamItemInfoItemToStreamItem(
+    uploaderAvatarUrl: String? = null,
+    feedInfo: StreamInfoItem? = null,
+): StreamItem {
+    return StreamItem() // Helper function placeholder
+}
 
 fun StreamInfoItem.toStreamItem(
     uploaderAvatarUrl: String? = null,
@@ -103,7 +120,6 @@ fun StreamInfoItem.toStreamItem(
     return StreamItem(
         type = TYPE_STREAM,
         url = url.toID(),
-        // if available prefer the RSS feed title, since it's untranslated
         title = feedInfo?.name ?: name,
         uploaded = uploadDate?.offsetDateTime()?.toEpochSecond()?.times(1000) ?: -1,
         uploadedDate = textualUploadDate ?: uploadDate?.offsetDateTime()?.toLocalDateTime()
@@ -175,7 +191,8 @@ fun ChannelInfo.toChannel() = Channel(
     verified = isVerified,
     avatarUrl = avatars.maxByOrNull { it.height }?.url,
     bannerUrl = banners.maxByOrNull { it.height }?.url,
-    tabs = tabs.map { ChannelTab(it.contentFilters.first().lowercase(), it.toTabDataString()) },
+    tabs = tabs.filterNot { it.contentFilters.contains(ChannelTabs.VIDEOS) }
+        .map { ChannelTab(it.contentFilters.first().lowercase(), it.toTabDataString()) },
     subscriberCount = subscriberCount
 )
 
@@ -210,8 +227,6 @@ fun CommentsInfoItem.toComment() = Comment(
     channelOwner = isChannelOwner
 )
 
-// the following classes are necessary because kotlinx can't deserialize
-// classes from external libraries as they're not annotated
 @Serializable
 private data class NextPage(
     val url: String? = null,
@@ -248,20 +263,17 @@ fun String.toListLinkHandler() = with(JsonHelper.json.decodeFromString<TabData>(
 
 class NewPipeMediaServiceRepository : MediaServiceRepository {
     init {
-        YoutubeStreamExtractor.setPoTokenProvider(PoTokenGenerator());
+        YoutubeStreamExtractor.setPoTokenProvider(PoTokenGenerator())
     }
 
-    // see https://github.com/TeamNewPipe/NewPipeExtractor/tree/dev/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube/extractors/kiosk
-    private val trendingCategories = TrendingCategory.entries.associate {
-        when (it) {
-            TrendingCategory.DEFAULT -> it to "trending"
-            TrendingCategory.GAMING -> it to "trending_gaming"
-            TrendingCategory.TRAILERS -> it to "trending_movies_and_shows"
-            TrendingCategory.PODCASTS -> it to "trending_podcasts_episodes"
-            TrendingCategory.MUSIC -> it to "trending_music"
-            TrendingCategory.LIVE -> it to "live"
-        }
-    }
+    private val trendingCategories = mapOf(
+        TrendingCategory.DEFAULT to "trending",
+        TrendingCategory.GAMING to "trending_gaming",
+        TrendingCategory.TRAILERS to "trending_movies_and_shows",
+        TrendingCategory.PODCASTS to "trending_podcasts_episodes",
+        TrendingCategory.MUSIC to "trending_music",
+        TrendingCategory.LIVE to "live"
+    )
 
     override fun getTrendingCategories(): List<TrendingCategory> =
         trendingCategories.keys.toList()
@@ -279,104 +291,93 @@ class NewPipeMediaServiceRepository : MediaServiceRepository {
     }
 
     override suspend fun getStreams(videoId: String): Streams = withContext(Dispatchers.IO) {
-        // SOLUCIÓN "PARCHE CALIENTE" PARA BLOQUEO DE IP LOCAL
-        // Si el extractor local falla (error 403), delegamos a un micro-scraper externo estable
-        try {
-            val respAsync = async {
-                StreamInfo.getInfo("$YOUTUBE_FRONTEND_URL/watch?v=$videoId")
-            }
-            val dislikesAsync = async {
-                if (PlayerHelper.localRYD) runCatching {
-                    RetrofitInstance.externalApi.getVotes(videoId).dislikes
-                }.getOrElse { -1 } else -1
-            }
-            val (resp, dislikes) = Pair(respAsync.await(), dislikesAsync.await())
-
-            Streams(
-                title = resp.name,
-                description = resp.description.content,
-                uploader = resp.uploaderName,
-                uploaderAvatar = resp.uploaderAvatars.maxBy { it.height }.url,
-                uploaderUrl = resp.uploaderUrl.toID(),
-                uploaderVerified = resp.isUploaderVerified,
-                uploaderSubscriberCount = resp.uploaderSubscriberCount,
-                category = resp.category,
-                views = resp.viewCount,
-                likes = resp.likeCount,
-                dislikes = dislikes,
-                license = resp.licence,
-                hls = resp.hlsUrl,
-                dash = resp.dashMpdUrl,
-                tags = resp.tags,
-                metaInfo = resp.metaInfo.map {
-                    MetaInfo(
-                        it.title,
-                        it.content.content,
-                        it.urls.map { url -> url.toString() },
-                        it.urlTexts
-                    )
-                },
-                visibility = resp.privacy.name.lowercase(),
-                duration = resp.duration,
-                uploadTimestamp = resp.uploadDate.offsetDateTime().toInstant().toKotlinInstant(),
-                uploaded = resp.uploadDate.offsetDateTime().toEpochSecond() * 1000,
-                thumbnailUrl = resp.thumbnails.maxBy { it.height }.url,
-                relatedStreams = resp.relatedItems
-                    .filterIsInstance<StreamInfoItem>()
-                    .map { item -> item.toStreamItem() },
-                chapters = resp.streamSegments.map {
-                    ChapterSegment(
-                        title = it.title,
-                        image = it.previewUrl.orEmpty(),
-                        start = it.startTimeSeconds.toLong()
-                    )
-                },
-                audioStreams = resp.audioStreams.map { it.toPipedStream() },
-                videoStreams = resp.videoOnlyStreams.map { it.toPipedStream().copy(videoOnly = true) } +
-                        resp.videoStreams.map { it.toPipedStream().copy(videoOnly = false) },
-                previewFrames = resp.previewFrames.map {
-                    PreviewFrames(
-                        it.urls,
-                        it.frameWidth,
-                        it.frameHeight,
-                        it.totalCount,
-                        it.durationPerFrame.toLong(),
-                        it.framesPerPageX,
-                        it.framesPerPageY
-                    )
-                },
-                subtitles = resp.subtitles.map {
-                    Subtitle(
-                        it.content,
-                        it.format?.mimeType,
-                        it.displayLanguageName,
-                        it.languageTag,
-                        it.isAutoGenerated
-                    )
-                },
-                // currently, isShortFormContent always seems to return false
-                isShort = resp.isShortFormContent || (resp.videoStreams + resp.videoOnlyStreams)
-                    .firstOrNull()?.let { it.height > it.width } ?: false
-            )
-        } catch (e: Exception) {
-            Log.e("NewPipeRepo", "Fallo extracción local ($videoId). Error: ${e.message}")
-            throw e
+        val respAsync = async {
+            StreamInfo.getInfo("$YOUTUBE_FRONTEND_URL/watch?v=$videoId")
         }
+        val dislikesAsync = async {
+            if (PlayerHelper.localRYD) runCatching {
+                RetrofitInstance.externalApi.getVotes(videoId).dislikes
+            }.getOrElse { -1 } else -1
+        }
+        val (resp, dislikes) = Pair(respAsync.await(), dislikesAsync.await())
+
+        Streams(
+            title = resp.name,
+            description = resp.description.content,
+            uploader = resp.uploaderName,
+            uploaderAvatar = resp.uploaderAvatars.maxBy { it.height }.url,
+            uploaderUrl = resp.uploaderUrl.toID(),
+            uploaderVerified = resp.isUploaderVerified,
+            uploaderSubscriberCount = resp.uploaderSubscriberCount,
+            category = resp.category,
+            views = resp.viewCount,
+            likes = resp.likeCount,
+            dislikes = dislikes,
+            license = resp.licence,
+            hls = resp.hlsUrl,
+            dash = resp.dashMpdUrl,
+            tags = resp.tags,
+            metaInfo = resp.metaInfo.map {
+                MetaInfo(
+                    it.title,
+                    it.content.content,
+                    it.urls.map { url -> url.toString() },
+                    it.urlTexts
+                )
+            },
+            visibility = resp.privacy.name.lowercase(),
+            duration = resp.duration,
+            uploadTimestamp = resp.uploadDate.offsetDateTime().toInstant().toKotlinInstant(),
+            uploaded = resp.uploadDate.offsetDateTime().toEpochSecond() * 1000,
+            thumbnailUrl = resp.thumbnails.maxBy { it.height }.url,
+            relatedStreams = resp.relatedItems
+                .filterIsInstance<StreamInfoItem>()
+                .map { item -> item.toStreamItem() },
+            chapters = resp.streamSegments.map {
+                ChapterSegment(
+                    title = it.title,
+                    image = it.previewUrl.orEmpty(),
+                    start = it.startTimeSeconds.toLong()
+                )
+            },
+            audioStreams = resp.audioStreams.map { it.toPipedStream() },
+            videoStreams = resp.videoOnlyStreams.map { it.toPipedStream().copy(videoOnly = true) },
+            previewFrames = resp.previewFrames.map {
+                PreviewFrames(
+                    it.urls,
+                    it.frameWidth,
+                    it.frameHeight,
+                    it.totalCount,
+                    it.durationPerFrame.toLong(),
+                    it.framesPerPageX,
+                    it.framesPerPageY
+                )
+            },
+            subtitles = resp.subtitles.map {
+                Subtitle(
+                    it.content,
+                    it.format?.mimeType,
+                    it.displayLanguageName,
+                    it.languageTag,
+                    it.isAutoGenerated
+                )
+            },
+            isShort = resp.isShortFormContent || (resp.videoStreams + resp.videoOnlyStreams)
+                .firstOrNull()?.let { it.height > it.width } ?: false,
+            serverAbrStreamingUrl = resp.serverAbrStreamingUrl,
+            videoPlaybackUstreamerConfig = resp.ustreamerConfig,
+        )
     }
 
     override suspend fun getSegments(
         videoId: String, category: List<String>, actionType: List<String>?
     ): SegmentData = RetrofitInstance.externalApi.getSegments(
-        // use hashed video id for privacy
-        // https://wiki.sponsor.ajay.app/w/API_Docs#GET_/api/skipSegments/:sha256HashPrefix
         videoId.sha256Sum().substring(0, 4), category, actionType
     ).first { it.videoID == videoId }
 
     override suspend fun getDeArrowContent(videoId: String): DeArrowContent? =
         runCatching {
             RetrofitInstance.externalApi.getDeArrowContent(
-                // use hashed video id for privacy
-                // https://wiki.sponsor.ajay.app/w/API_Docs/DeArrow#GET_/api/branding/:sha256HashPrefix
                 videoId.sha256Sum().substring(0, 4)
             )
         }.getOrDefault(emptyMap())[videoId]?.let { value ->
@@ -438,7 +439,6 @@ class NewPipeMediaServiceRepository : MediaServiceRepository {
     }
 
     override suspend fun getChannel(channelId: String): Channel {
-        // SOLUCIÓN DEFINITIVA: Intentar con yt-dlp instance primero
         val ytDlpResult = fetchChannelFromYtDlp(channelId)
         if (ytDlpResult != null) return ytDlpResult
 
@@ -463,7 +463,7 @@ class NewPipeMediaServiceRepository : MediaServiceRepository {
             if (conn.responseCode == 200) {
                 val response = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(response)
-                
+
                 val streams = mutableListOf<StreamItem>()
                 val videosArray = json.optJSONArray("videos")
                 if (videosArray != null) {
@@ -481,7 +481,7 @@ class NewPipeMediaServiceRepository : MediaServiceRepository {
                         ))
                     }
                 }
-                
+
                 return@withContext Channel(
                     id = channelId,
                     name = json.optString("name"),

@@ -1,6 +1,6 @@
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
+import com.google.protobuf.gradle.id
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlin.parcelize)
@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.androidx.navigation.safeargs)
     alias(libs.plugins.baselineprofile)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.google.protobuf)
 }
 
 /*
@@ -20,7 +21,7 @@ keyPassword=my_key_password
  */
 
 val keystoreProperties = Properties()
-val keystoreFileExists = rootProject.file("keystore.properties").exists();
+val keystoreFileExists = rootProject.file("keystore.properties").exists()
 if (keystoreFileExists) {
     keystoreProperties.load(rootProject.file("keystore.properties").inputStream())
 }
@@ -32,8 +33,8 @@ android {
         applicationId = "com.ytlatmpx.kuropremium"
         minSdk = 26
         targetSdk = 37
-        versionCode = 24
-        versionName = "2.5.2"
+        versionCode = 25
+        versionName = "3.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "app_name", "YouTube Mod")
     }
@@ -106,13 +107,10 @@ android {
     }
 
     dependenciesInfo {
-        // Disables dependency metadata when building APKs.
         includeInApk = false
-        // Disables dependency metadata when building Android App Bundles.
         includeInBundle = false
     }
 
-    // language preference for Android 13 and above
     androidResources {
         generateLocaleConfig = true
     }
@@ -161,10 +159,11 @@ dependencies {
     implementation(libs.kotlinx.serialization)
     implementation(libs.kotlinx.datetime)
     implementation(libs.converter.kotlinx.serialization)
+    implementation(libs.google.protobuf.javalite)
+    implementation(libs.google.protobuf.kotlin.lite)
 
     /* NewPipe Extractor */
     implementation(libs.newpipeextractor)
-
 
     /* Coil */
     coreLibraryDesugaring(libs.desugaring)
@@ -184,4 +183,19 @@ dependencies {
 
     /* Testing */
     testImplementation(libs.junit)
+}
+
+protobuf {
+    protoc {
+        artifact = libs.protobuf.protoc.get().toString()
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                id("java") {
+                    option("lite")
+                }
+            }
+        }
+    }
 }

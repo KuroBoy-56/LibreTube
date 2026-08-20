@@ -20,6 +20,7 @@ import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.libretube.R
+import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.PlaylistsHelper
 import com.github.libretube.api.obj.Playlist
 import com.github.libretube.api.obj.StreamItem
@@ -149,13 +150,7 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
             playlistName = response.name
             isLoading = false
 
-            if (!response.thumbnailUrl.isNullOrEmpty()) {
-                ImageHelper.loadImage(response.thumbnailUrl, binding.thumbnail)
-            } else {
-                binding.thumbnail.setImageResource(R.drawable.ic_empty_playlist)
-                binding.thumbnail.setPadding(64f.dpToPx())
-                binding.thumbnail.setBackgroundColor(com.google.android.material.R.attr.colorSurface)
-            }
+            setPlaylistThumbnail(response.thumbnailUrl)
 
             binding.playlistProgress.isGone = true
             binding.playlistAppBar.isVisible = true
@@ -179,10 +174,7 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
                 RecyclerView.AdapterDataObserver() {
                 override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {
                     if (positionStart == 0) {
-                        ImageHelper.loadImage(
-                            playlistFeed.firstOrNull()?.thumbnail.orEmpty(),
-                            binding.thumbnail
-                        )
+                        setPlaylistThumbnail(playlistFeed.firstOrNull()?.thumbnail)
                     }
 
                     binding.playlistInfo.text = getChannelAndVideoString(response, playlistFeed.size)
@@ -301,7 +293,6 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
                 }
 
                 binding.sortBTN.text = sortOptions[selectedSortOrder]
-
             }
 
             updatePlaylistBookmark(response)
@@ -371,12 +362,14 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
 
         val query = playlistViewModel.searchQuery.value
         if (!query.isNullOrEmpty()) {
-            videos = videos.filter { it.item.title.orEmpty().contains(query, ignoreCase = true) }
+            videos = videos.filter {
+                it.item.title.orEmpty().contains(query, ignoreCase = true) ||
+                        it.item.uploaderName.orEmpty().contains(query, ignoreCase = true)
+            }
         }
 
         playlistAdapter?.submitList(videos)
-
-        updatePlaylistDuration()
+        updatePlaylistDuration(videos)
     }
 
     private fun removeFromPlaylist(sortedFeedPosition: Int) {
@@ -393,25 +386,33 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
             try {
                 PlaylistsHelper.removeFromPlaylist(playlistId, originalPlaylistPosition)
 
-                val snackBarText = getString(R.string.successfully_removed_from_playlist)
+                val shortTitle = TextUtils.limitTextToLength(video.title.orEmpty(), 50)
+                val snackBarText = getString(R.string.successfully_removed_from_playlist, shortTitle)
 
                 withContext(Dispatchers.Main) {
                     Snackbar.make(binding.root, snackBarText, Snackbar.LENGTH_LONG)
                         .setTextMaxLines(3)
                         .setAction(R.string.undo) {
-                            reAddToPlaylist(
-                                video,
-                                sortedFeedPosition,
-                                originalPlaylistPosition
-                            )
+                            reAddToPlaylist(video, sortedFeedPosition, originalPlaylistPosition)
                         }
                         .show()
+                    updateInfo(updatedList)
                 }
             } catch (e: Exception) {
                 Log.e(TAG(), e.toString())
                 context?.toastFromMainDispatcher(R.string.unknown_error)
             }
         }
+    }
+
+    private fun updateInfo(updatedList: List<PlaylistItem>) {
+        val playlistCount = updatedList.size
+        binding.playlistInfo.text = getChannelAndVideoString(
+            Playlist(name = playlistName, videos = playlistCount),
+            playlistCount
+        )
+        updatePlaylistDuration(updatedList)
+        setPlaylistThumbnail(updatedList.firstOrNull()?.item?.thumbnail)
     }
 
     private fun reAddToPlaylist(
@@ -430,6 +431,7 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
 
                 withContext(Dispatchers.Main) {
                     playlistAdapter.submitList(fixedList)
+                    updateInfo(fixedList)
                 }
             } catch (e: Exception) {
                 Log.e(TAG(), e.toString())
@@ -448,7 +450,7 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
         }
     }
 
-    // MAGIA 3: Evitamos el R.string.videoCount y armamos el texto manualmente. Cero crasheos.
+    // MAGIA 3: Tu función a prueba de fallos para armar el texto del canal y videos
     @SuppressLint("StringFormatInvalid", "StringFormatMatches")
     private fun getChannelAndVideoString(playlist: Playlist, count: Int): String {
         val uploader = playlist.uploader.orEmpty()
@@ -460,14 +462,44 @@ class PlaylistFragment : DynamicLayoutManagerFragment(R.layout.fragment_playlist
     private fun fetchNextPage() {
         if (nextPage == null || isLoading) return
         isLoading = true
-        isLoading = false
+
+        lifecycleScope.launch {
+            val response = try {
+                withContext(Dispatchers.IO) {
+                    MediaServiceRepository.instance.getPlaylistNextPage(playlistId, nextPage!!)
+                }
+            } catch (e: Exception) {
+                context?.toastFromMainDispatcher(e.localizedMessage.orEmpty())
+                Log.e(TAG(), e.toString())
+                return@launch
+            }
+
+            nextPage = response.nextpage
+            val currentList = playlistAdapter?.currentList.orEmpty()
+            val newList = currentList + response.relatedStreams.mapIndexed { index, item ->
+                PlaylistItem(item, currentList.size + index)
+            }
+            playlistAdapter?.submitList(newList)
+            updatePlaylistDuration(newList)
+            isLoading = false
+        }
     }
 
     @SuppressLint("SetTextI18n")
-    private fun updatePlaylistDuration() {
-        val totalDuration = playlistFeed.sumOf { it.duration ?: 0 } ?: return
+    private fun updatePlaylistDuration(updatedList: List<PlaylistItem>) {
+        val totalDuration = updatedList.sumOf { it.item.duration ?: 0 }
         binding.playlistDuration.text = DateUtils.formatElapsedTime(totalDuration) +
                 if (nextPage != null) "+" else ""
+    }
+
+    private fun setPlaylistThumbnail(thumbnailUrl: String?) {
+        if (!thumbnailUrl.isNullOrEmpty()) {
+            ImageHelper.loadImage(thumbnailUrl, binding.thumbnail)
+        } else {
+            binding.thumbnail.setImageResource(R.drawable.ic_empty_playlist)
+            binding.thumbnail.setPadding(64f.dpToPx())
+            binding.thumbnail.setBackgroundColor(com.google.android.material.R.attr.colorSurface)
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

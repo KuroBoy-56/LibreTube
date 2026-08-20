@@ -398,13 +398,13 @@
     <string name="chapters_videoHighlight">Videókiemelés</string>
     <string name="automatic">Automatikus</string>
     <string name="show_search_suggestions">Keresési javaslatok megjelenítése</string>
-    <string name="descriptive_audio_track">leíró</string>
-    <string name="default_or_unknown_audio_track">alapérték vagy ismeretlen</string>
+    <string name="descriptive_audio_track">Hangalámondás</string>
+    <string name="default_or_unknown_audio_track">Alapértelmezett</string>
     <string name="audio_track_format">%1$s - %2$s</string>
     <string name="unknown_audio_track_type">Ismeretlen típusú hangsáv</string>
     <string name="unknown_audio_language">Ismeretlen hang nyelv</string>
-    <string name="original_or_main_audio_track">eredeti vagy fő</string>
-    <string name="dubbed_audio_track">szinkronizált</string>
+    <string name="original_or_main_audio_track">Eredeti</string>
+    <string name="dubbed_audio_track">Szinkronizált</string>
     <string name="unknown_or_no_audio">ismeretlen vagy nincs hang</string>
     <string name="continue_watching">Nézés folytatása</string>
     <string name="dearrow">DeArrow engedélyezése</string>
@@ -448,7 +448,7 @@
     <string name="group_name_error_exists">Válasszon egyedi nevet</string>
     <string name="contribute_to_sponsorblock">Hozzájárulás a SponsorBlock-hoz</string>
     <string name="sponsorblock_user_id">SponsorBlock felhasználói azonosító</string>
-    <string name="donate">Adományozás</string>
+    <string name="donate">Adakozás</string>
     <string name="music_artists">YT Music előadók</string>
     <string name="autoplay_playlists_summary">Automatikusan lejátssza a következő videót egy lejátszási listában az automatikus lejátszási adatoktól függetlenül</string>
     <string name="vote_for_segment">Szavazás szakaszra</string>
@@ -568,4 +568,8 @@
     <string name="ungrouped_channels_with_count">Nem csoportosított (%1$d)</string>
     <string name="long_press_fast_forward">Gyors előretekerés hosszú megnyomáskor</string>
     <string name="long_press_fast_forward_summary">A képernyőre koppintva és rajta tartva kétszeres sebességgel játszhatja le a videót.</string>
+    <string name="resume_all">Letöltések folytatása</string>
+    <string name="comment_verified">Ellenőrzött</string>
+    <string name="comment_pinned">Kitűzött</string>
+    <string name="courses">Kurzusok</string>
 </resources>

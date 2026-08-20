@@ -10,13 +10,20 @@ import com.github.libretube.extensions.setOnDraggedListener
 import com.github.libretube.helpers.NavBarHelper
 import com.github.libretube.ui.adapters.NavBarOptionsAdapter
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.github.libretube.helpers.NavBarHelper.NavBarItem
 
 class NavBarOptionsDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val binding = SimpleOptionsRecyclerBinding.inflate(layoutInflater)
-        val options = NavBarHelper.getNavBarItems(requireContext())
+        val options = NavBarHelper.getNavBarItemPreference(requireContext())
         val adapter = NavBarOptionsAdapter(
-            options.toMutableList(),
+            options.map { (itemId, isVisible) ->
+                NavBarItem(
+                    itemId,
+                    NavBarHelper.getNavBarItemTitle(requireContext(), itemId),
+                    isVisible
+                )
+            }.toMutableList(),
             NavBarHelper.getStartFragmentId(requireContext())
         )
 
@@ -34,7 +41,7 @@ class NavBarOptionsDialog : DialogFragment() {
             .setTitle(R.string.navigation_bar)
             .setView(binding.root)
             .setPositiveButton(R.string.okay) { _, _ ->
-                NavBarHelper.setNavBarItems(adapter.items, requireContext())
+                NavBarHelper.setNavBarItemsPreference( requireContext(), adapter.items)
                 NavBarHelper.setStartFragment(requireContext(), adapter.selectedHomeTabId)
                 RequireRestartDialog()
                     .show(requireParentFragment().childFragmentManager, null)

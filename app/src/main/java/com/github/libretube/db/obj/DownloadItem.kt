@@ -6,13 +6,11 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.github.libretube.enums.FileType
 import java.nio.file.Path
+import kotlin.io.path.fileSize
 
 @Entity(
     tableName = "downloadItem",
-    indices = [
-        Index(value = ["path"], unique = true),
-        Index(value = ["videoId"])
-    ],
+    indices = [Index(value = ["path"], unique = true)],
     foreignKeys = [
         ForeignKey(
             entity = Download::class,
@@ -29,9 +27,17 @@ data class DownloadItem(
     val videoId: String,
     val fileName: String,
     var path: Path,
-    var url: String? = null,
     var format: String? = null,
     var quality: String? = null,
     var language: String? = null,
-    var downloadSize: Long = -1L
-)
+    /**
+     * Total size of the item in bytes (not the current download progress!).
+     */
+    var downloadSize: Long = -1L,
+    /**
+     * Current download progress of the video in milliseconds. Only used for SABR downloads.
+     */
+    var currentDownloadPositionMillis: Long? = null
+) {
+    val isFinished get() = downloadSize > 0L && runCatching { path.fileSize() }.getOrDefault(0L) >= downloadSize
+}

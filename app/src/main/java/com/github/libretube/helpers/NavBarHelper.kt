@@ -14,6 +14,12 @@ import com.google.android.material.navigation.NavigationBarView
 
 object NavBarHelper {
 
+    data class NavBarItem(
+        val itemId: Int,
+        val title: String?,
+        var isVisible: Boolean
+    )
+
     fun hasTabs(): Boolean = true
 
     fun getNavBarItems(context: Context): List<MenuItem> {
@@ -41,6 +47,20 @@ object NavBarHelper {
     fun setNavBarItems(items: List<MenuItem>, context: Context) {
         // La dejamos vacía a propósito.
         // Esto bloquea cualquier intento del sistema de cambiar tu barra premium.
+    }
+
+    fun getNavBarItemPreference(context: Context): List<Pair<Int, Boolean>> {
+        return getNavBarItems(context).map { it.itemId to it.isVisible }
+    }
+
+    fun getNavBarItemTitle(context: Context, itemId: Int): String? {
+        val p = PopupMenu(context, null)
+        MenuInflater(context).inflate(R.menu.bottom_menu, p.menu)
+        return p.menu.findItem(itemId)?.title?.toString()
+    }
+
+    fun setNavBarItemsPreference(context: Context, items: List<NavBarItem>) {
+        // La dejamos vacía a propósito.
     }
 
     fun applyNavBarStyle(bottomNav: BottomNavigationView): Int {

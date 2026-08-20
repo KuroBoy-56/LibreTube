@@ -21,6 +21,22 @@
             android:paddingBottom="4dp"
             android:orientation="horizontal">
 
+            <!-- NUEVO BOTÓN INYECTADO: Reanudar todas (Con el diseño de tu app) -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/resume_all"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="?attr/colorOnSurface"
+                app:iconTint="?attr/colorOnSurface"
+                android:text="@string/resume_all"
+                android:contentDescription="@string/resume_all"
+                app:icon="@drawable/ic_play"
+                android:tooltipText="@string/resume_all"
+                android:visibility="gone"
+                tools:targetApi="o"
+                tools:visibility="visible" />
+
             <TextView
                 android:id="@+id/playlist_name"
                 android:layout_width="0dp"

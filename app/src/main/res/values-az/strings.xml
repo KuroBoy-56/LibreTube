@@ -312,7 +312,7 @@
     <string name="theme_monochrome">Azaldılmış saya</string>
     <string name="play_latest_videos">Ən son videoları oynat</string>
     <string name="nothing_selected">Heç nə seçilməyib!</string>
-    <string name="color_violet">Bütöv bənövşəyi</string>
+    <string name="color_violet">Hərtərəfli bənövşəyi</string>
     <string name="failed_fetching_instances">Mövcud instansiyaları əldə etmək mümkün olmadı.</string>
     <string name="hide_watched_from_feed">Artıq baxılan videoları gizlət</string>
     <string name="playlistUrl">Oynatma Siyahısı URL\'si</string>
@@ -400,10 +400,10 @@
     <string name="stop">Dayandır</string>
     <string name="audio_track_format">%1$s - %2$s</string>
     <string name="unknown_audio_track_type">Naməlum səs axını növü</string>
-    <string name="original_or_main_audio_track">orijinal və ya əsas</string>
-    <string name="dubbed_audio_track">dublyaj edilib</string>
-    <string name="descriptive_audio_track">təsviri</string>
-    <string name="default_or_unknown_audio_track">standart və ya naməlum</string>
+    <string name="original_or_main_audio_track">Orijinal</string>
+    <string name="dubbed_audio_track">Dublyaj olunub</string>
+    <string name="descriptive_audio_track">Səs Təsviri</string>
+    <string name="default_or_unknown_audio_track">İlkin</string>
     <string name="unknown_or_no_audio">naməlum və ya səs yoxdur</string>
     <string name="unknown_audio_language">Naməlum səs dili</string>
     <string name="continue_watching">Baxmağa davam et</string>
@@ -568,4 +568,8 @@
     <string name="ungrouped_channels_with_count">Qruplaşdırılmayan (%1$d)</string>
     <string name="long_press_fast_forward">Uzun basanda sürətli irəliyə</string>
     <string name="long_press_fast_forward_summary">Ekrana toxunub və saxlayarkən videonu ikiqat sürətlə oynat.</string>
+    <string name="resume_all">Yükləmələrə Davam Et</string>
+    <string name="comment_verified">Təsdiqləndi</string>
+    <string name="comment_pinned">Nişanlandı</string>
+    <string name="courses">Kurslar</string>
 </resources>

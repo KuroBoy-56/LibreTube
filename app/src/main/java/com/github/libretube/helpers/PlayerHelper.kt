@@ -4,15 +4,20 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.res.Resources
 import android.net.Uri
 import android.os.Looper
 import android.util.Base64
 import android.view.accessibility.CaptioningManager
+import androidx.annotation.DrawableRes
+import androidx.annotation.OptIn
 import androidx.annotation.StringRes
 import androidx.core.app.PendingIntentCompat
 import androidx.core.app.RemoteActionCompat
 import androidx.core.content.getSystemService
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -23,7 +28,6 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -49,8 +53,6 @@ import com.github.libretube.enums.SbSkipOptions
 import com.github.libretube.extensions.seekBy
 import com.github.libretube.extensions.togglePlayPauseState
 import com.github.libretube.obj.VideoStats
-import com.github.libretube.services.AbstractPlayerService
-import com.github.libretube.services.OfflinePlayerService
 import com.github.libretube.services.OnlinePlayerService
 import com.github.libretube.util.TextUtils
 import kotlinx.coroutines.CoroutineScope
@@ -60,7 +62,6 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 object PlayerHelper {
     private const val ACTION_MEDIA_CONTROL = "media_control"
     const val CONTROL_TYPE = "control_type"
@@ -73,7 +74,8 @@ object PlayerHelper {
 
     const val MAXIMUM_PLAYBACK_SPEED = 8f
 
-    const val MAX_BUFFER_DELAY = 6000L // 6 segundos máximo de espera (estilo Vanced)
+    // RECHAZADA LA ACTUALIZACIÓN: Mantenemos 6 segundos para que nuestra rotación automática de proxy funcione.
+    const val MAX_BUFFER_DELAY = 6000L
 
     val repeatModes = listOf(
         Player.REPEAT_MODE_OFF to R.string.repeat_mode_none,
@@ -88,15 +90,16 @@ object PlayerHelper {
     )
 
     fun createDashSource(streams: Streams, context: Context): Uri {
-        if (!streams.dash.isNullOrEmpty()) {
-            return ProxyHelper.rewriteUrlUsingProxyPreference(streams.dash!!).toUri()
-        }
+        val manifest = DashHelper.createManifest(
+            streams,
+            DisplayHelper.supportsHdr(context)
+        )
 
-        val manifest = DashHelper.createManifest(streams)
         val encoded = Base64.encodeToString(manifest.toByteArray(), Base64.DEFAULT)
         return "data:application/dash+xml;charset=utf-8;base64,$encoded".toUri()
     }
 
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun getCaptionStyle(context: Context): CaptionStyleCompat {
         val captioningManager = context.getSystemService<CaptioningManager>()!!
         return if (!captioningManager.isEnabled) {
@@ -144,6 +147,18 @@ object PlayerHelper {
         get() = PreferenceHelper.getBoolean(
             PreferenceKeys.RELATED_STREAMS,
             true
+        )
+
+    val pipEnabled: Boolean
+        get() = PreferenceHelper.getBoolean(
+            PreferenceKeys.PIP_ENABLED,
+            true
+        )
+
+    val pauseOnQuit: Boolean
+        get() = PreferenceHelper.getBoolean(
+            PreferenceKeys.PAUSE_ON_QUIT,
+            false
         )
 
     val pausePlayerOnScreenOffEnabled: Boolean
@@ -229,18 +244,6 @@ object PlayerHelper {
             PreferenceKeys.SKIP_BUTTONS,
             false
         )
-
-    private val behaviorWhenMinimized
-        get() = PreferenceHelper.getString(
-            PreferenceKeys.BEHAVIOR_WHEN_MINIMIZED,
-            "pip"
-        )
-
-    val pipEnabled: Boolean
-        get() = behaviorWhenMinimized == "pip"
-
-    val pauseOnQuit: Boolean
-        get() = behaviorWhenMinimized == "pause"
 
     var autoPlayEnabled: Boolean
         get() = PreferenceHelper.getBoolean(
@@ -360,29 +363,17 @@ object PlayerHelper {
             .getBoolean(PreferenceKeys.AUTOPLAY_PLAYLISTS, false))
     }
 
-    private val handleAudioFocus
-        get() = !PreferenceHelper.getBoolean(
-            PreferenceKeys.ALLOW_PLAYBACK_DURING_CALL,
-            false
-        )
-
     fun getDefaultResolution(context: Context, isFullscreen: Boolean): Int? {
-        val resolutionString = if (NetworkHelper.isNetworkMetered(context)) {
-            if (isFullscreen) {
-                PreferenceHelper.getString(PreferenceKeys.DEFAULT_RESOLUTION_MOBILE, "720p")
-            } else {
-                PreferenceHelper.getString("default_res_mobile_no_fullscreen", "720p")
-            }
+        var prefKey = if (NetworkHelper.isNetworkMetered(context)) {
+            PreferenceKeys.DEFAULT_RESOLUTION_MOBILE
         } else {
-            if (isFullscreen) {
-                PreferenceHelper.getString(PreferenceKeys.DEFAULT_RESOLUTION, "720p")
-            } else {
-                PreferenceHelper.getString("default_res_no_fullscreen", "720p")
-            }
+            PreferenceKeys.DEFAULT_RESOLUTION
         }
+        if (!isFullscreen) prefKey += "_no_fullscreen"
 
-        if (resolutionString == "" || resolutionString == "720p") return 720
-        return resolutionString.replace("p", "").toIntOrNull()
+        return PreferenceHelper.getString(prefKey, "")
+            .replace("p", "")
+            .toIntOrNull()
     }
 
     fun getIntentActionName(context: Context): String {
@@ -391,7 +382,7 @@ object PlayerHelper {
 
     private fun getRemoteAction(
         activity: Activity,
-        id: Int,
+        icon: IconCompat,
         @StringRes title: Int,
         event: PlayerEvent
     ): RemoteActionCompat {
@@ -402,43 +393,48 @@ object PlayerHelper {
             PendingIntentCompat.getBroadcast(activity, event.ordinal, intent, 0, false)!!
 
         val text = activity.getString(title)
-        val icon = IconCompat.createWithResource(activity, id)
-
         return RemoteActionCompat(icon, text, text, pendingIntent)
+    }
+
+    private fun seekIconWithSpeed(resources: Resources, @DrawableRes resourceId: Int): IconCompat {
+        val textSize = 15 * resources.displayMetrics.density
+        val bitmap = ResourcesCompat.getDrawable(resources, resourceId, null)!!.toBitmap()
+        ImageHelper.insertText(bitmap, seekIncrement.div(1000).toString(), 0.5f, 0.65f, textSize)
+        return IconCompat.createWithBitmap(bitmap)
     }
 
     fun getPiPModeActions(activity: Activity, isPlaying: Boolean): List<RemoteActionCompat> {
         val audioModeAction = getRemoteAction(
             activity,
-            R.drawable.ic_headphones,
+            IconCompat.createWithResource(activity, R.drawable.ic_headphones),
             R.string.background_mode,
             PlayerEvent.Background
         )
 
         val rewindAction = getRemoteAction(
             activity,
-            R.drawable.ic_rewind,
+            seekIconWithSpeed(activity.resources, R.drawable.ic_rewind),
             R.string.rewind,
             PlayerEvent.Rewind
         )
 
         val playPauseAction = getRemoteAction(
             activity,
-            if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
+            IconCompat.createWithResource(activity, if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play),
             if (isPlaying) R.string.resume else R.string.pause,
             PlayerEvent.PlayPause
         )
 
         val skipNextAction = getRemoteAction(
             activity,
-            R.drawable.ic_next,
+            IconCompat.createWithResource(activity, R.drawable.ic_next),
             R.string.play_next,
             PlayerEvent.Next
         )
 
         val forwardAction = getRemoteAction(
             activity,
-            R.drawable.ic_forward,
+            seekIconWithSpeed(activity.resources, R.drawable.ic_forward),
             R.string.forward,
             PlayerEvent.Forward
         )
@@ -449,6 +445,7 @@ object PlayerHelper {
         }
     }
 
+    @OptIn(UnstableApi::class)
     private fun createRendererFactory(context: Context): DefaultRenderersFactory {
         val renderersFactory = object : DefaultRenderersFactory(context) {
             override fun buildTextRenderers(
@@ -463,42 +460,15 @@ object PlayerHelper {
                 (out.last() as? TextRenderer)?.experimentalSetLegacyDecodingEnabled(true)
             }
         }
-        renderersFactory.setEnableDecoderFallback(true)
-        renderersFactory.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         return renderersFactory
     }
 
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun createPlayer(context: Context, trackSelector: DefaultTrackSelector, isOffline: Boolean = false): ExoPlayer {
-        val dataSourceFactory = if (isOffline) {
-            DefaultDataSource.Factory(context)
-        } else {
-            getCacheDataSourceFactory(context)
-        }
-
+        val dataSourceFactory = DefaultDataSource.Factory(context)
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-            .build()
-
-        val defaultRes = getDefaultResolution(context, true) ?: 720
-
-        trackSelector.parameters = trackSelector.buildUponParameters()
-            .clearVideoSizeConstraints()
-            .clearViewportSizeConstraints()
-            .apply {
-                if (!isOffline) {
-                    setMaxVideoSize(Int.MAX_VALUE, defaultRes)
-                    setForceHighestSupportedBitrate(false)
-                    setExceedVideoConstraintsIfNecessary(false)
-                } else {
-                    setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
-                    setForceHighestSupportedBitrate(true)
-                    setExceedVideoConstraintsIfNecessary(true)
-                }
-            }
-            .setExceedRendererCapabilitiesIfNecessary(true)
-            .setAllowVideoMixedDecoderSupportAdaptiveness(true)
-            .setAllowVideoNonSeamlessAdaptiveness(true)
             .build()
 
         return ExoPlayer.Builder(context)
@@ -507,40 +477,33 @@ object PlayerHelper {
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setTrackSelector(trackSelector)
             .setHandleAudioBecomingNoisy(true)
-            .setLoadControl(if (isOffline) DefaultLoadControl() else getLoadControl())
-            .setAudioAttributes(audioAttributes, handleAudioFocus)
-            .setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+            .setLoadControl(getLoadControl())
+            .setAudioAttributes(audioAttributes, true)
             .build()
             .apply {
                 loadPlaybackParams()
             }
     }
 
-    @UnstableApi
-    fun getCacheDataSourceFactory(context: Context): DataSource.Factory {
-        val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(userAgent)
-            .setAllowCrossProtocolRedirects(true)
-
-        return CacheDataSource.Factory()
-            .setCache(LibreTubeApp.getCache())
-            .setUpstreamDataSourceFactory(DefaultDataSource.Factory(context, httpDataSourceFactory))
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-    }
-
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun getLoadControl(): LoadControl {
+        // RECHAZADA LA ACTUALIZACIÓN: Inyectamos nuevamente el límite estricto de 45s.
+        val safeMaxBuffer = 45000
+        val requestedBuffer = max(bufferingGoal, MINIMUM_BUFFER_DURATION)
+        val finalMaxBuffer = if (requestedBuffer > safeMaxBuffer) safeMaxBuffer else requestedBuffer
+
         return DefaultLoadControl.Builder()
             .setBackBuffer(1000 * 60 * 10, true) // 10 mins back buffer
             .setBufferDurationsMs(
-                MINIMUM_BUFFER_DURATION,
-                max(bufferingGoal * 1000, MINIMUM_BUFFER_DURATION),
+                MINIMUM_BUFFER_DURATION, // 10 segundos: Despierta la red para pedir
+                finalMaxBuffer,          // 45 segundos: Duerme la red para evitar saturar
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
             )
             .build()
     }
 
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun ExoPlayer.loadPlaybackParams(): ExoPlayer {
         skipSilenceEnabled = skipSilence
 
@@ -677,7 +640,7 @@ object PlayerHelper {
                     context.getString(R.string.unknown_audio_language)
                 } else {
                     Locale.forLanguageTag(audioLanguage)
-                        .getDisplayLanguage(Locale.getDefault())
+                        .getDisplayName(Locale.getDefault())
                         .ifEmpty { context.getString(R.string.unknown_audio_language) }
                 },
                 getDisplayAudioTrackTypeFromFormat(context, audioLanguageAndRoleFlags.second)
@@ -729,6 +692,7 @@ object PlayerHelper {
         return roleFlags or acontRoleFlags
     }
 
+    @OptIn(UnstableApi::class)
     fun getVideoStats(tracks: Tracks, videoId: String): VideoStats {
         val videoStats = VideoStats(videoId, "", "", "")
 
@@ -801,15 +765,14 @@ object PlayerHelper {
         }
     }
 
-    fun stopPlayerService(context: Context) {
-        try {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-            val eventDown = android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE)
-            val eventUp = android.view.KeyEvent(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_MEDIA_PAUSE)
-            audioManager.dispatchMediaKeyEvent(eventDown)
-            audioManager.dispatchMediaKeyEvent(eventUp)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+    @UnstableApi
+    fun getCacheDataSourceFactory(context: Context): DataSource.Factory {
+        val cache = LibreTubeApp.getCache()
+        val upstreamFactory = DefaultDataSource.Factory(context)
+        return CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setCacheWriteDataSinkFactory(null)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 }

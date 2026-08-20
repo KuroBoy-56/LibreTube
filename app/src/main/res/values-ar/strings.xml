@@ -66,7 +66,7 @@
     <string name="history">السجل</string>
     <string name="channels">القنوات</string>
     <string name="all">الكل</string>
-    <string name="okay">حسناً</string>
+    <string name="okay">حسنًا</string>
     <string name="search_history">سجل البحث</string>
     <string name="clear_history">مسح السجل</string>
     <string name="music_songs">موسيقى يوتيوب</string>
@@ -139,8 +139,8 @@
     <string name="appearance_summary">اضبط التطبيق حسب رغبتك</string>
     <string name="customInstance_summary">أضف…</string>
     <string name="shareTo">مشاركة الرابط إلى</string>
-    <string name="no_audio">لا يوجد صوت</string>
-    <string name="no_video">لا يوجد فيديو</string>
+    <string name="no_audio">لا صوت</string>
+    <string name="no_video">لا فيديو</string>
     <string name="audio">صوت</string>
     <string name="video">فيديو</string>
     <string name="downloading">جارِ التنزيل…</string>
@@ -153,7 +153,7 @@
     <string name="pauseOnScreenOff_summary">أوقف التشغيل مؤقتا عند إيقاف تشغيل الشاشة</string>
     <string name="reset">استعادة الإعدادات الافتراضية</string>
     <string name="reset_message">إعادة تعيين جميع الإعدادات وتسجيل الخروج؟</string>
-    <string name="clonePlaylist">نسخ قائمة التشغيل</string>
+    <string name="clonePlaylist">استنسخ قائمة التشغيل</string>
     <string name="deleteAccount">احذف الحساب</string>
     <string name="restore">استعِد</string>
     <string name="deleteAccount_summary">احذف حساب Piped الخاص بك</string>
@@ -169,7 +169,7 @@
     <string name="auto_rotation">التدوير التلقائي</string>
     <string name="landscape">افقي</string>
     <string name="portrait">عمودي</string>
-    <string name="turnInternetOn">يرجى تشغيل Wi-Fi أو بيانات الجوال للاتصال بالإنترنت.</string>
+    <string name="turnInternetOn">يُرجى تشغيل Wi-Fi أو بيانات الجوّال للاتصال بالإنترنت.</string>
     <string name="open">فتح …</string>
     <string name="chapters">الفصول</string>
     <string name="require_restart_message">أعد تشغيل التطبيق لاستخدام التغييرات الجديدة.</string>
@@ -386,7 +386,7 @@
     <string name="mark_as_unwatched">علّم لم اشاهده</string>
     <string name="welcome">مرحبا بك في ليبري تيوب</string>
     <string name="choose_instance">يُرجى اختيار نُسْخَة أولاً!</string>
-    <string name="choose_instance_long">يرجى اختيار خادم Piped للاستخدامه من القائمة أدناه سيعمل هذا الخادم كوسيط بينك وبين YouTube تقع هذه الخوادم في مواقع جغرافية مختلفة موضّحة بعلم الدولة/الدول الخاصة بها عادةً ما تكون الخوادم الأقرب إلى موقعك الفعلي أسرع من الخوادم البعيدة يمكنك تغيير الخادم الذي تستخدمه في أي وقت من خلال الإعدادات.</string>
+    <string name="choose_instance_long">يُرجى اختيار خادم Piped للاستخدامه من القائمة أدناه سيعمل هذا الخادم كوسيط بينك وبين YouTube تقع هذه الخوادم في مواقع جغرافية مختلفة موضّحة بعلم الدولة/الدول الخاصة بها عادةً ما تكون الخوادم الأقرب إلى موقعك الفعلي أسرع من الخوادم البعيدة يمكنك تغيير الخادم الذي تستخدمه في أي وقت من خلال الإعدادات.</string>
     <string name="emptyPlaylistDescription">لا يمكن أن يكون وصف قائمة التشغيل فارغا</string>
     <string name="playlist_description">وصف قائمة التشغيل</string>
     <string name="change_playlist_description">تغيير وصف قائمة التشغيل</string>
@@ -403,10 +403,10 @@
     <string name="chapters_videoHighlight">ملخصات الفيديو</string>
     <string name="stop">إيقاف</string>
     <string name="unknown_audio_track_type">نوع مسار صوتي غير معروف</string>
-    <string name="original_or_main_audio_track">أصلي أو رئيسي</string>
-    <string name="dubbed_audio_track">مدبلجة</string>
-    <string name="descriptive_audio_track">وصفي</string>
-    <string name="default_or_unknown_audio_track">افتراضي أو غير معروف</string>
+    <string name="original_or_main_audio_track">الأصلي</string>
+    <string name="dubbed_audio_track">مدبلج</string>
+    <string name="descriptive_audio_track">وصف الصوت</string>
+    <string name="default_or_unknown_audio_track">الافتراضي</string>
     <string name="unknown_or_no_audio">مجهول أو لا يوجد صوت</string>
     <string name="audio_track_format">%1$s - %2$s</string>
     <string name="unknown_audio_language">لغة صوت غير معروفة</string>
@@ -481,7 +481,7 @@
     <string name="grid_landscape">أعمدة الشبكة (أفقي)</string>
     <string name="rich_caption_rendering">التسميات التوضيحية المتقدمة</string>
     <string name="rich_caption_rendering_summary">عرض التسميات التوضيحية على الويب للحصول على تجربة أكثر ثراءً وتخصيصًا</string>
-    <string name="copy_tooltip">نسخ</string>
+    <string name="copy_tooltip">انسخ</string>
     <string name="change">غيّر</string>
     <string name="change_instance">غير الخادم</string>
     <string name="suggest_change_instance">يستغرق التنزيل أكثر من المعتاد. يُرجى النظر في تغيير الخادم</string>
@@ -516,7 +516,7 @@
     <string name="import_watch_history">استيراد سجل المشاهدة</string>
     <string name="audio_codecs">مرمازات الصوت</string>
     <string name="view_count">مشاهدات %1$s</string>
-    <string name="dialog_play_offline_title">تتوفر نسخة محلية من هذا الفيديو.</string>
+    <string name="dialog_play_offline_title">تتوفر نُسخة محلية من هذا الفيديو.</string>
     <string name="dialog_play_offline_body">هل ترغب في تشغيل الفيديو من مجلد التنزيل ؟</string>
     <string name="upcoming">القادمة</string>
     <string name="delete_only_watched_videos">احذف فقط مقاطع الفيديو التي شاهدتها بالفعل</string>
@@ -525,12 +525,12 @@
     <string name="export_playlist">صدّر قائمة التشغيل</string>
     <string name="import_format_list_of_urls">قائمة عناوين URL أو معرّفات الفيديو</string>
     <string name="local_feed_extraction">استخراج موجز المحلية</string>
-    <string name="local_feed_extraction_summary">قم بجلب الخلاصة مباشرةً من YouTube قد يكون هذا أبطأ بشكل ملحوظ.</string>
+    <string name="local_feed_extraction_summary">اجلب الخلاصة مباشرةً من YouTube قد يكون هذا أبطأ بشكل ملحوظ.</string>
     <string name="update_information">تحديث المعلومات</string>
     <string name="never_show_again">لا تعرض هذا مجدداً</string>
     <string name="show_upcoming_videos">أظهِر الفيديوهات القادمة</string>
     <string name="full_local_mode">وضع الإتصال المحلي</string>
-    <string name="authentication">المصادقة</string>
+    <string name="authentication">الاستيثاق</string>
     <string name="mode_of_operation">طريقة التشغيل</string>
     <string name="full_local_mode_desc">جلب كل شيء مباشرة من YouTube دون استخدام Piped.</string>
     <string name="updating_feed">تحديث التغذية …</string>
@@ -545,7 +545,7 @@
     <string name="screenshot_saved">حُفظت لقطة الشاشة</string>
     <string name="did_you_mean">هل تقصد:</string>
     <string name="showing_results_for">يظهر نتائج ل:</string>
-    <string name="delete_playlist_include_vidoes">حذف جميع مقاطع الفيديو من قائمة التشغيل أيضًا؟</string>
+    <string name="delete_playlist_include_vidoes">احذف جميع مقاطع الفيديو من قائمة التشغيل أيضًا؟</string>
     <string name="category_hook">خطّاف/تحيات</string>
     <string name="category_hook_summary">للحصول على خطافات سردية تجذب انتباه المشاهد (غالبًا كالمشهد الأول) عن طريق التشويق أو وصف أحداث من وقت لاحق في نفس الفيديو أو حلقات مستقبلية في سلسلة</string>
     <string name="checking_frequency_15_minutes">15 دقيقة</string>
@@ -580,4 +580,8 @@
     <string name="ungrouped_channels_with_count">غير مُجمَّعة (%1$d)</string>
     <string name="long_press_fast_forward">تقديم سريع عند الضغط مطولاً</string>
     <string name="long_press_fast_forward_summary">شغّل الفيديو بضعف السرعة من خلال النقر مع الاستمرار على الشاشة.</string>
+    <string name="resume_all">استئناف التنزيلات</string>
+    <string name="comment_verified">مُتحقّق منه</string>
+    <string name="comment_pinned">مثبَّت</string>
+    <string name="courses">دورات</string>
 </resources>
