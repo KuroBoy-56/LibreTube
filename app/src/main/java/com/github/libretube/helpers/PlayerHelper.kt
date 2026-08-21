@@ -74,8 +74,7 @@ object PlayerHelper {
 
     const val MAXIMUM_PLAYBACK_SPEED = 8f
 
-    // RECHAZADA LA ACTUALIZACIÓN: Mantenemos 6 segundos para que nuestra rotación automática de proxy funcione.
-    const val MAX_BUFFER_DELAY = 6000L
+    const val MAX_BUFFER_DELAY = 10 * 60 * 1000L
 
     val repeatModes = listOf(
         Player.REPEAT_MODE_OFF to R.string.repeat_mode_none,
@@ -487,16 +486,11 @@ object PlayerHelper {
 
     @OptIn(androidx.media3.common.util.UnstableApi::class)
     fun getLoadControl(): LoadControl {
-        // RECHAZADA LA ACTUALIZACIÓN: Inyectamos nuevamente el límite estricto de 45s.
-        val safeMaxBuffer = 45000
-        val requestedBuffer = max(bufferingGoal, MINIMUM_BUFFER_DURATION)
-        val finalMaxBuffer = if (requestedBuffer > safeMaxBuffer) safeMaxBuffer else requestedBuffer
-
         return DefaultLoadControl.Builder()
-            .setBackBuffer(1000 * 60 * 10, true) // 10 mins back buffer
+            .setBackBuffer(1000 * 60 * 3, true)
             .setBufferDurationsMs(
-                MINIMUM_BUFFER_DURATION, // 10 segundos: Despierta la red para pedir
-                finalMaxBuffer,          // 45 segundos: Duerme la red para evitar saturar
+                MINIMUM_BUFFER_DURATION,
+                max(bufferingGoal, MINIMUM_BUFFER_DURATION),
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
                 DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
             )

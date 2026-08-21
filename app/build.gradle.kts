@@ -1,6 +1,7 @@
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import com.google.protobuf.gradle.id
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlin.parcelize)
@@ -26,22 +27,33 @@ if (keystoreFileExists) {
     keystoreProperties.load(rootProject.file("keystore.properties").inputStream())
 }
 
+// CIRUGÍA: ksp, tasks y kotlin van AFUERA del bloque android (al nivel del proyecto)
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("exportSchema", "true")
+}
+
+tasks.register("testClasses")
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+        javaParameters = true
+    }
+}
+// FIN DE LA CIRUGÍA
+
 android {
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.ytlatmpx.kuropremium"
         minSdk = 26
-        targetSdk = 37
+        targetSdk = 36
         versionCode = 25
         versionName = "3.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "app_name", "YouTube Mod")
-    }
-
-    ksp {
-        arg("room.schemaLocation", "$projectDir/schemas")
-        arg("exportSchema", "true")
     }
 
     viewBinding {
@@ -83,18 +95,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget = JvmTarget.JVM_17
-            javaParameters = true
-        }
-    }
-
     packaging {
         jniLibs.excludes.add("lib/armeabi-v7a/*_neon.so")
     }
-
-    tasks.register("testClasses")
 
     lint {
         abortOnError = false
