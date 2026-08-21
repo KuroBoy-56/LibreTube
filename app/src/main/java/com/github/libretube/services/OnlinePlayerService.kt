@@ -13,6 +13,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.BehindLiveWindowException
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -44,38 +45,37 @@ import com.github.libretube.util.YoutubeHlsPlaylistParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * Loads the selected videos audio in background mode with a notification area.
- */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 open class OnlinePlayerService : AbstractPlayerService() {
     override val isOfflinePlayer: Boolean = false
 
-    // PlaylistId/ChannelId for autoplay
     private var playlistId: String? = null
     private var channelId: String? = null
     private var startTimestampSeconds: Long? = null
 
-    /**
-     * The response that gets when called the Api.
-     */
     private var streams: Streams? = null
 
-    private val scope = CoroutineScope(Dispatchers.IO)
+    // CIRUGÍA: SupervisorJob evita que un error destruya el reproductor entero
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    /*
-    Current job that's loading a new video (the value is null if no video is loading at the moment).
-     */
     private var fetchVideoInfoJob: Job? = null
-
     private var retryCount = 0
 
     private val playerListener = object : Player.Listener {
         override fun onPlayerError(error: PlaybackException) {
+            // CIRUGÍA: Interceptor para rescatar los En Vivo si se desincronizan
+            if (error.cause is BehindLiveWindowException) {
+                Log.w(TAG(), "BehindLiveWindowException: Resincronizando En Vivo...")
+                exoPlayer?.seekToDefaultPosition()
+                exoPlayer?.prepare()
+                return
+            }
+
             if (retryCount < 2) {
                 retryCount++
                 Log.w(TAG(), "Player error: ${error.errorCodeName}. Retrying ($retryCount/2)...")
@@ -83,7 +83,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     startPlayback()
                 }
             } else {
-                if (com.github.libretube.helpers.NetworkHelper.isNetworkAvailable(this@OnlinePlayerService) && 
+                if (com.github.libretube.helpers.NetworkHelper.isNetworkAvailable(this@OnlinePlayerService) &&
                     error.errorCode != PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED) {
                     toastFromMainThread(error.localizedMessage ?: "Unknown error")
                 }
@@ -102,9 +102,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
                 Player.STATE_BUFFERING -> {}
                 Player.STATE_READY -> {
-                    // save video to watch history when the video starts playing or is being resumed
-                    // waiting for the player to be ready since the video can't be claimed to be watched
-                    // while it did not yet start actually, but did buffer only so far
                     if (PlayerHelper.watchHistoryEnabled) {
                         scope.launch(Dispatchers.IO) {
                             streams?.let { streams ->
@@ -127,7 +124,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
         }
         isAudioOnlyPlayer = args.getBoolean(IntentData.audioOnly)
 
-        // get the intent arguments
         videoId = playerData.videoId!!
         playlistId = playerData.playlistId
         channelId = playerData.channelId
@@ -147,11 +143,8 @@ open class OnlinePlayerService : AbstractPlayerService() {
         val timestampMs = startTimestampSeconds?.times(1000) ?: 0L
         startTimestampSeconds = null
 
-        // stop any previous task for loading video info
         fetchVideoInfoJob?.cancelAndJoin()
 
-        // start loading the video info while keeping a reference to the job
-        // so that it can be canceled once a different video is loaded
         fetchVideoInfoJob = scope.launch {
             streams = withContext(Dispatchers.IO) {
                 try {
@@ -160,7 +153,7 @@ open class OnlinePlayerService : AbstractPlayerService() {
                     }
                 }  catch (e: Exception) {
                     Log.e(TAG(), e.stackTraceToString())
-                    if (com.github.libretube.helpers.NetworkHelper.isNetworkAvailable(this@OnlinePlayerService) && 
+                    if (com.github.libretube.helpers.NetworkHelper.isNetworkAvailable(this@OnlinePlayerService) &&
                         e !is java.net.UnknownHostException) {
                         toastFromMainDispatcher(e.localizedMessage.orEmpty())
                     }
@@ -169,14 +162,12 @@ open class OnlinePlayerService : AbstractPlayerService() {
             } ?: return@launch
 
             streams?.toStreamItem(videoId)?.let {
-                // save the current stream to the queue
                 PlayingQueue.updateCurrent(it)
 
                 if (!PlayingQueue.hasNext()) {
                     PlayingQueue.updateQueue(it, playlistId, channelId, streams!!.relatedStreams)
                 }
 
-                // update feed item with newer information, e.g. more up-to-date views
                 SubscriptionHelper.submitFeedItemChange(it.toFeedItem())
             }
 
@@ -196,7 +187,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
     }
 
     private fun configurePlayer(seekToPositionMs: Long) {
-        // seek to the previous position if available
         if (seekToPositionMs != 0L) {
             exoPlayer?.seekTo(seekToPositionMs)
         } else if (watchPositionsEnabled) {
@@ -206,15 +196,11 @@ open class OnlinePlayerService : AbstractPlayerService() {
         }
 
         exoPlayer?.apply {
-            // automatically start playback when using the audio player
             playWhenReady = PlayerHelper.playAutomatically || isAudioOnlyPlayer
             prepare()
         }
     }
 
-    /**
-     * Plays the next video from the queue
-     */
     private fun playNextVideo(nextId: String? = null) {
         if (nextId == null) {
             if (PlayingQueue.repeatMode == Player.REPEAT_MODE_ONE) {
@@ -227,7 +213,6 @@ open class OnlinePlayerService : AbstractPlayerService() {
 
         val nextVideo = nextId ?: PlayingQueue.getNext() ?: return
 
-        // play new video on background
         navigateVideo(nextVideo)
     }
 
@@ -251,98 +236,117 @@ open class OnlinePlayerService : AbstractPlayerService() {
     private fun setStreamSource() {
         val streams = streams ?: return
 
-        when {
-            // SABR
-            // skip SABR for livestreams, as the player impl has no support for it
-            !streams.isLive && streams.serverAbrStreamingUrl != null && streams.videoPlaybackUstreamerConfig != null -> {
-                val sabrMediaSourceFactory = SabrMediaSource.Factory(
-                    SabrManifest(videoId, streams)
-                )
-                val mediaItem = createMediaItem(
-                    streams.serverAbrStreamingUrl.toUri(),
-                    "application/vnd.yt-ump",
-                    streams
-                )
-                val mediaSource = sabrMediaSourceFactory.createMediaSource(mediaItem)
-                val mediaSources = listOf<MediaSource>(mediaSource) + streams.subtitles.map {
-                    val format = Format.Builder()
-                        .setSampleMimeType(it.mimeType)
-                        .setLanguage(it.code)
-                        .setRoleFlags(getSubtitleRoleFlags(it))
-                        .build()
-                    val subtitleParserFactory = DefaultSubtitleParserFactory()
-                    val extractorsFactory = ExtractorsFactory {
-                        arrayOf(
-                            SubtitleExtractor(
-                                subtitleParserFactory.create(format), format
+        // CIRUGÍA: Try-catch para evitar que un error de red o manifiesto tumbe el servicio
+        try {
+            when {
+                // 1. VOD: Motor SABR (Solo videos normales)
+                !streams.isLive && streams.serverAbrStreamingUrl != null && streams.videoPlaybackUstreamerConfig != null -> {
+                    val sabrMediaSourceFactory = SabrMediaSource.Factory(
+                        SabrManifest(videoId, streams)
+                    )
+                    val mediaItem = createMediaItem(
+                        streams.serverAbrStreamingUrl.toUri(),
+                        "application/vnd.yt-ump",
+                        streams
+                    )
+                    val mediaSource = sabrMediaSourceFactory.createMediaSource(mediaItem)
+                    val mediaSources = listOf<MediaSource>(mediaSource) + streams.subtitles.map {
+                        val format = Format.Builder()
+                            .setSampleMimeType(it.mimeType)
+                            .setLanguage(it.code)
+                            .setRoleFlags(getSubtitleRoleFlags(it))
+                            .build()
+                        val subtitleParserFactory = DefaultSubtitleParserFactory()
+                        val extractorsFactory = ExtractorsFactory {
+                            arrayOf(
+                                SubtitleExtractor(
+                                    subtitleParserFactory.create(format), format
+                                )
                             )
-                        )
-                    }
-                    val progressiveMediaSourceFactory = ProgressiveMediaSource.Factory(
-                        DefaultDataSource.Factory(this), extractorsFactory
-                    ).setLoadOnlySelectedTracks(true)
-                    try {
-                        // `enableLazyLoadingWithSingleTrack` is private
-                        val method =
-                            ProgressiveMediaSource.Factory::class.java.getDeclaredMethod(
+                        }
+                        val progressiveMediaSourceFactory = ProgressiveMediaSource.Factory(
+                            DefaultDataSource.Factory(this), extractorsFactory
+                        ).setLoadOnlySelectedTracks(true)
+                        try {
+                            val method = ProgressiveMediaSource.Factory::class.java.getDeclaredMethod(
                                 "enableLazyLoadingWithSingleTrack",
                                 Int::class.java,
                                 Format::class.java
                             )
-                        method.isAccessible = true
-                        method.invoke(
-                            progressiveMediaSourceFactory, SubtitleExtractor.TRACK_ID,
-                            format
-                                .buildUpon()
-                                .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
-                                .setCodecs(format.sampleMimeType)
-                                .setCueReplacementBehavior( subtitleParserFactory.getCueReplacementBehavior(format))
-                                .build()
-                        )
-                    } catch (e: Exception) {
-                        Log.w(this::class.simpleName, "failed to set subtitle lazy-loading: ${e.stackTrace}")
-                    }
-                    progressiveMediaSourceFactory.createMediaSource(MediaItem.fromUri(it.url!!))
-                }.toList()
+                            method.isAccessible = true
+                            method.invoke(
+                                progressiveMediaSourceFactory, SubtitleExtractor.TRACK_ID,
+                                format
+                                    .buildUpon()
+                                    .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
+                                    .setCodecs(format.sampleMimeType)
+                                    .setCueReplacementBehavior(subtitleParserFactory.getCueReplacementBehavior(format))
+                                    .build()
+                            )
+                        } catch (e: Exception) {
+                            Log.w(this::class.simpleName, "failed to set subtitle lazy-loading: ${e.stackTrace}")
+                        }
+                        progressiveMediaSourceFactory.createMediaSource(MediaItem.fromUri(it.url!!))
+                    }.toList()
 
-                exoPlayer?.setMediaSource(MergingMediaSource(*mediaSources.toTypedArray()))
-                return
-            }
-            // DASH
-            streams.videoStreams.isNotEmpty() -> {
-                // only use the dash manifest generated by YT if either it's a livestream or no other source is available
-                val dashUri =
-                    if (streams.isLive && streams.dash != null) {
-                        ProxyHelper.rewriteUrlUsingProxyPreference(
-                            streams.dash
-                        ).toUri()
-                    } else {
-                        PlayerHelper.createDashSource(streams, this)
-                    }
+                    exoPlayer?.setMediaSource(MergingMediaSource(*mediaSources.toTypedArray()))
+                    return
+                }
 
-                val mediaItem = createMediaItem(dashUri, MimeTypes.APPLICATION_MPD, streams)
-                exoPlayer?.setMediaItem(mediaItem)
-            }
-            // HLS as last fallback
-            streams.hls != null -> {
-                val hlsMediaSourceFactory = HlsMediaSource.Factory(PlayerHelper.getCacheDataSourceFactory(this))
-                    .setPlaylistParserFactory(YoutubeHlsPlaylistParser.Factory())
+                // 2. EN VIVO: Forzamos HLS primero (El más estable para directos)
+                streams.isLive && streams.hls != null -> {
+                    val hlsMediaSourceFactory = HlsMediaSource.Factory(PlayerHelper.getCacheDataSourceFactory(this@OnlinePlayerService))
+                        .setPlaylistParserFactory(YoutubeHlsPlaylistParser.Factory())
 
-                val mediaItem = createMediaItem(
-                    ProxyHelper.rewriteUrlUsingProxyPreference(streams.hls).toUri(),
-                    MimeTypes.APPLICATION_M3U8,
-                    streams
-                )
-                val mediaSource = hlsMediaSourceFactory.createMediaSource(mediaItem)
+                    val mediaItem = createMediaItem(
+                        ProxyHelper.rewriteUrlUsingProxyPreference(streams.hls).toUri(),
+                        MimeTypes.APPLICATION_M3U8,
+                        streams
+                    )
+                    val mediaSource = hlsMediaSourceFactory.createMediaSource(mediaItem)
 
-                exoPlayer?.setMediaSource(mediaSource)
-                return
+                    exoPlayer?.setMediaSource(mediaSource)
+                    return
+                }
+
+                // 3. EN VIVO: Fallback a DASH si HLS no existe
+                streams.isLive && streams.dash != null -> {
+                    val dashUri = ProxyHelper.rewriteUrlUsingProxyPreference(streams.dash).toUri()
+                    val mediaItem = createMediaItem(dashUri, MimeTypes.APPLICATION_MPD, streams)
+                    exoPlayer?.setMediaItem(mediaItem)
+                }
+
+                // 4. VOD: DASH (Generado internamente)
+                !streams.isLive && streams.videoStreams.isNotEmpty() -> {
+                    val dashUri = PlayerHelper.createDashSource(streams, this@OnlinePlayerService)
+                    val mediaItem = createMediaItem(dashUri, MimeTypes.APPLICATION_MPD, streams)
+                    exoPlayer?.setMediaItem(mediaItem)
+                }
+
+                // 5. VOD: Fallback a HLS
+                streams.hls != null -> {
+                    val hlsMediaSourceFactory = HlsMediaSource.Factory(PlayerHelper.getCacheDataSourceFactory(this@OnlinePlayerService))
+                        .setPlaylistParserFactory(YoutubeHlsPlaylistParser.Factory())
+
+                    val mediaItem = createMediaItem(
+                        ProxyHelper.rewriteUrlUsingProxyPreference(streams.hls).toUri(),
+                        MimeTypes.APPLICATION_M3U8,
+                        streams
+                    )
+                    val mediaSource = hlsMediaSourceFactory.createMediaSource(mediaItem)
+
+                    exoPlayer?.setMediaSource(mediaSource)
+                    return
+                }
+
+                else -> {
+                    toastFromMainThread(R.string.unknown_error)
+                    return
+                }
             }
-            // NO STREAM FOUND
-            else -> {
-                toastFromMainThread(R.string.unknown_error)
-                return
-            }
+        } catch (e: Exception) {
+            Log.e(TAG(), "Error crítico parseando el formato del video", e)
+            toastFromMainThread(R.string.unknown_error)
         }
     }
 
