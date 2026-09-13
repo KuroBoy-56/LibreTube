@@ -394,95 +394,121 @@ class MainActivity : AbstractPlayerHostActivity() {
     }
 
     private fun mostrarAlertaDias(titulo: String, mensaje: String) {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        try {
+            val dialog = Dialog(this)
+            dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
 
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(60, 80, 60, 80)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#191C24"))
-                cornerRadius = 60f
-                setStroke(5, Color.parseColor("#ff3e3e"))
+            val rootLayout = LinearLayout(this).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                gravity = Gravity.CENTER
+                setBackgroundColor(Color.parseColor("#E6000000"))
+                isClickable = true
+                isFocusable = true
             }
+
+            val cardLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(70, 90, 70, 90)
+                background = GradientDrawable().apply {
+                    colors = intArrayOf(
+                        Color.parseColor("#1C1C1C"),
+                        Color.parseColor("#0A0A0A")
+                    )
+                    orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                    cornerRadius = 50f
+                    setStroke(3, Color.parseColor("#E50914"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    (resources.displayMetrics.widthPixels * 0.85).toInt(),
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val iconView = ImageView(this).apply {
+                setImageResource(R.drawable.mono)
+                layoutParams = LinearLayout.LayoutParams(220, 220).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    bottomMargin = 40
+                }
+            }
+
+            val titleView = TextView(this).apply {
+                text = titulo.uppercase()
+                textSize = 21f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(Color.parseColor("#E50914"))
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = 25
+                }
+            }
+
+            val messageView = TextView(this).apply {
+                text = mensaje
+                textSize = 15f
+                setTextColor(Color.parseColor("#CCCCCC"))
+                gravity = Gravity.CENTER
+                setLineSpacing(0f, 1.4f)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = 70
+                }
+            }
+
+            val button = Button(this).apply {
+                text = "ENTENDIDO"
+                setTextColor(Color.WHITE)
+                textSize = 15f
+                setTypeface(null, Typeface.BOLD)
+                background = GradientDrawable().apply {
+                    colors = intArrayOf(
+                        Color.parseColor("#E50914"),
+                        Color.parseColor("#990000")
+                    )
+                    orientation = GradientDrawable.Orientation.BL_TR
+                    cornerRadius = 25f
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    (resources.displayMetrics.widthPixels * 0.65).toInt(),
+                    130
+                ).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                }
+                setOnClickListener {
+                    dialog.dismiss()
+                }
+            }
+
+            cardLayout.addView(iconView)
+            cardLayout.addView(titleView)
+            cardLayout.addView(messageView)
+            cardLayout.addView(button)
+            rootLayout.addView(cardLayout)
+            dialog.setContentView(rootLayout)
+
+            dialog.window?.apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setGravity(Gravity.CENTER)
+            }
+
+            dialog.setCancelable(false)
+            dialog.show()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-
-        val iconView = ImageView(this).apply {
-            setImageResource(android.R.drawable.ic_dialog_alert)
-            setColorFilter(Color.parseColor("#ff3e3e"))
-            layoutParams = LinearLayout.LayoutParams(160, 160).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = 50
-            }
-        }
-
-        val titleView = TextView(this).apply {
-            text = titulo
-            textSize = 20f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 30
-            }
-        }
-
-        val messageView = TextView(this).apply {
-            text = mensaje
-            textSize = 15f
-            setTextColor(Color.parseColor("#E0E0E0"))
-            gravity = Gravity.CENTER
-            setLineSpacing(0f, 1.3f)
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 60
-            }
-        }
-
-        val button = Button(this).apply {
-            text = "ENTENDIDO"
-            setTextColor(Color.WHITE)
-            textSize = 15f
-            setTypeface(null, Typeface.BOLD)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#ff3e3e"))
-                cornerRadius = 25f
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                (resources.displayMetrics.widthPixels * 0.6).toInt(),
-                130
-            ).apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-            }
-            setOnClickListener {
-                dialog.dismiss()
-            }
-        }
-
-        layout.addView(iconView)
-        layout.addView(titleView)
-        layout.addView(messageView)
-        layout.addView(button)
-
-        dialog.setContentView(layout)
-
-        dialog.window?.apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(
-                (context.resources.displayMetrics.widthPixels * 0.85).toInt(),
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-            setGravity(Gravity.CENTER)
-        }
-
-        dialog.setCancelable(false)
-        dialog.show()
     }
 
     private fun checkAndRequestPermissions() {
@@ -587,138 +613,172 @@ class MainActivity : AbstractPlayerHostActivity() {
     }
 
     private fun mostrarUpdate(notas: String, link: String, obligatorio: Boolean) {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        try {
+            val dialog = Dialog(this)
+            dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
 
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(60, 80, 60, 80)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#191C24"))
-                cornerRadius = 60f
-                setStroke(5, Color.parseColor("#ff3e3e"))
+            val themeColor = if (obligatorio) "#E50914" else "#00BFFF"
+
+            val rootLayout = LinearLayout(this).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                gravity = Gravity.CENTER
+                setBackgroundColor(Color.parseColor("#E6000000"))
+                isClickable = true
+                isFocusable = true
             }
-        }
 
-        val iconView = ImageView(this).apply {
-            val resId = resources.getIdentifier("ic_notification", "drawable", packageName)
-            setImageResource(if (resId != 0) resId else android.R.drawable.ic_popup_sync)
-            setColorFilter(Color.parseColor("#ff3e3e"))
-            layoutParams = LinearLayout.LayoutParams(160, 160).apply {
+            val cardLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(70, 90, 70, 90)
+                background = GradientDrawable().apply {
+                    colors = intArrayOf(
+                        Color.parseColor("#1C1C1C"),
+                        Color.parseColor("#0A0A0A")
+                    )
+                    orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                    cornerRadius = 50f
+                    setStroke(3, Color.parseColor(themeColor))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    (resources.displayMetrics.widthPixels * 0.85).toInt(),
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+
+            val iconView = ImageView(this).apply {
+                setImageResource(R.drawable.mono)
+                layoutParams = LinearLayout.LayoutParams(220, 220).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    bottomMargin = 40
+                }
+            }
+
+            val titleView = TextView(this).apply {
+                text = if (obligatorio) "¡ACTUALIZACIÓN REQUERIDA!" else "¡NUEVA VERSIÓN DISPONIBLE!"
+                textSize = 21f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = 25
+                }
+            }
+
+            val messageView = TextView(this).apply {
+                text = if (obligatorio) "Tu versión actual está obsoleta. Para seguir disfrutando sin interrupciones, descarga la nueva versión.\n\n$notas" else "¡Mejoras y novedades te esperan!\n\n$notas\n\n¿Deseas actualizar ahora?"
+                textSize = 15f
+                setTextColor(Color.parseColor("#CCCCCC"))
+                gravity = Gravity.CENTER
+                setLineSpacing(0f, 1.4f)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    bottomMargin = 70
+                }
+            }
+
+            val buttonContainer = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                bottomMargin = 50
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
             }
-        }
 
-        val titleView = TextView(this).apply {
-            text = if (obligatorio) "¡ACTUALIZACIÓN REQUERIDA!" else "¡NUEVA VERSIÓN DISPONIBLE!"
-            textSize = 20f
-            setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 30
-            }
-        }
-
-        val messageView = TextView(this).apply {
-            text = if (obligatorio) "Tu versión actual está obsoleta. Para seguir disfrutando sin interrupciones, descarga la nueva versión.\n\n$notas" else "¡Mejoras y novedades te esperan!\n\n$notas\n\n¿Deseas actualizar ahora?"
-            textSize = 15f
-            setTextColor(Color.parseColor("#E0E0E0"))
-            gravity = Gravity.CENTER
-            setLineSpacing(0f, 1.3f)
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                bottomMargin = 60
-            }
-        }
-
-        val buttonContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        val positiveButton = Button(this).apply {
-            text = "🚀 DESCARGAR AHORA"
-            setTextColor(Color.WHITE)
-            textSize = 15f
-            setTypeface(null, Typeface.BOLD)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#ff3e3e"))
-                cornerRadius = 25f
-            }
-            layoutParams = LinearLayout.LayoutParams(
-                (resources.displayMetrics.widthPixels * 0.65).toInt(),
-                130
-            ).apply {
-                bottomMargin = 30
-            }
-            setOnClickListener {
-                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)))
-                if (obligatorio) {
-                    finishAffinity()
-                } else {
-                    pendingUpdateLink = null
-                    invalidateMenu()
-                    dialog.dismiss()
+            val positiveButton = Button(this).apply {
+                text = "🚀 DESCARGAR AHORA"
+                setTextColor(Color.WHITE)
+                textSize = 15f
+                setTypeface(null, Typeface.BOLD)
+                background = GradientDrawable().apply {
+                    if (obligatorio) {
+                        colors = intArrayOf(
+                            Color.parseColor("#E50914"),
+                            Color.parseColor("#990000")
+                        )
+                    } else {
+                        colors = intArrayOf(
+                            Color.parseColor("#00BFFF"),
+                            Color.parseColor("#007799")
+                        )
+                    }
+                    orientation = GradientDrawable.Orientation.BL_TR
+                    cornerRadius = 25f
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    (resources.displayMetrics.widthPixels * 0.65).toInt(),
+                    130
+                ).apply {
+                    bottomMargin = 30
+                }
+                setOnClickListener {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)))
+                    if (obligatorio) {
+                        finishAffinity()
+                    } else {
+                        pendingUpdateLink = null
+                        invalidateMenu()
+                        dialog.dismiss()
+                    }
                 }
             }
-        }
 
-        val negativeButton = Button(this).apply {
-            text = if (obligatorio) "Salir 🚪" else "Más tarde ⏰"
-            setTextColor(Color.parseColor("#cccccc"))
-            textSize = 14f
-            setTypeface(null, Typeface.BOLD)
-            background = ColorDrawable(Color.TRANSPARENT)
-            layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-            setOnClickListener {
-                if (obligatorio) {
-                    finishAffinity()
-                } else {
-                    pendingUpdateLink = link
-                    pendingUpdateNotes = notas
-                    isUpdateMandatory = obligatorio
-                    invalidateMenu()
-                    dialog.dismiss()
+            val negativeButton = Button(this).apply {
+                text = if (obligatorio) "Salir 🚪" else "Más tarde ⏰"
+                setTextColor(Color.GRAY)
+                textSize = 14f
+                setTypeface(null, Typeface.BOLD)
+                background = ColorDrawable(Color.TRANSPARENT)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                setOnClickListener {
+                    if (obligatorio) {
+                        finishAffinity()
+                    } else {
+                        pendingUpdateLink = link
+                        pendingUpdateNotes = notas
+                        isUpdateMandatory = obligatorio
+                        invalidateMenu()
+                        dialog.dismiss()
+                    }
                 }
             }
+
+            buttonContainer.addView(positiveButton)
+            buttonContainer.addView(negativeButton)
+
+            cardLayout.addView(iconView)
+            cardLayout.addView(titleView)
+            cardLayout.addView(messageView)
+            cardLayout.addView(buttonContainer)
+            rootLayout.addView(cardLayout)
+            dialog.setContentView(rootLayout)
+
+            dialog.window?.apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setGravity(Gravity.CENTER)
+            }
+
+            dialog.setCancelable(!obligatorio)
+            dialog.show()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-
-        buttonContainer.addView(positiveButton)
-        buttonContainer.addView(negativeButton)
-
-        layout.addView(iconView)
-        layout.addView(titleView)
-        layout.addView(messageView)
-        layout.addView(buttonContainer)
-
-        dialog.setContentView(layout)
-
-        dialog.window?.apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            setLayout(
-                (context.resources.displayMetrics.widthPixels * 0.85).toInt(),
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-            setGravity(Gravity.CENTER)
-        }
-
-        dialog.setCancelable(!obligatorio)
-        dialog.show()
     }
 
     private fun navigateToBottomSelectedItem(item: MenuItem): Boolean {
