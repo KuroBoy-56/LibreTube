@@ -1,5 +1,6 @@
 package com.github.libretube.util
 
+import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import org.json.JSONObject
@@ -26,6 +27,8 @@ class CrashManager(
         defaultHandler?.uncaughtException(thread, exception) ?: exitProcess(1)
     }
 
+    // Le decimos a Android Studio que ignore su falso positivo de versión mínima
+    @SuppressLint("NewApi")
     private fun sendErrorToServer(tipo: String, mensaje: String, stacktrace: String) {
         if (apiUrl.isEmpty()) return
         try {
