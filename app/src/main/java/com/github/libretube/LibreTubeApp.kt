@@ -54,7 +54,7 @@ class LibreTubeApp : Application() {
 
         // 🛡️ 0. INICIAMOS EL MONITOR DE ERRORES SILENCIOSO
         val logApiUrl = decryptString(ENCRYPTED_ERROR_API_PATH)
-        CrashManager.init(BuildConfig.VERSION_NAME, logApiUrl, "App Video Mod")
+        CrashManager.init(BuildConfig.VERSION_NAME, logApiUrl, "YouTube Mod")
 
         // 🔒 1. Verificación ANTICRACK FIRMA
         verificarFirma(this)
