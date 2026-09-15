@@ -102,6 +102,7 @@ object DatabaseHolder {
                 MIGRATION_22_23,
                 MIGRATION_23_24
             )
+            .fallbackToDestructiveMigration(dropAllTables = true) // <--- INYECTAMOS LA REGLA AQUÍ
             .build()
     }
 }
