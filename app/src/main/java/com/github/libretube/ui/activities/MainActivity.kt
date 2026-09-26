@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.content.res.ColorStateList
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -25,6 +26,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -32,6 +34,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.widget.SearchView
 import androidx.constraintlayout.motion.widget.Key
+import androidx.core.content.FileProvider
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.net.toUri
 import androidx.core.os.bundleOf
@@ -87,12 +90,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedInputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 class MainActivity : AbstractPlayerHostActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -121,6 +131,14 @@ class MainActivity : AbstractPlayerHostActivity() {
     private var pendingUpdateLink: String? = null
     private var pendingUpdateNotes: String? = null
     private var isUpdateMandatory: Boolean = false
+
+    // Actualizador interno: conserva la URL y la comprobación de versiones de LibreTube.
+    private var updateDownloadDialog: Dialog? = null
+    private var updateProgressBar: ProgressBar? = null
+    private var updateProgressText: TextView? = null
+    private var pendingUpdateApk: File? = null
+    private var waitingForInstallPermission = false
+    private var updateDownloadInProgress = false
 
     private val createPlaylistsFile = registerForActivityResult(
         ActivityResultContracts.CreateDocument(FILETYPE_ANY)
@@ -267,6 +285,28 @@ class MainActivity : AbstractPlayerHostActivity() {
     override fun onResume() {
         super.onResume()
         validarAccesoContinuo()
+
+        if (waitingForInstallPermission && pendingUpdateApk != null) {
+            val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    packageManager.canRequestPackageInstalls()
+                } catch (_: SecurityException) {
+                    false
+                }
+            } else {
+                true
+            }
+
+            if (canInstall) {
+                waitingForInstallPermission = false
+                pendingUpdateApk?.let { apkFile ->
+                    lanzarInstalador(
+                        apkFile,
+                        isUpdateMandatory
+                    )
+                }
+            }
+        }
     }
 
     private fun getCustomMacAddress(): String {
@@ -278,6 +318,29 @@ class MainActivity : AbstractPlayerHostActivity() {
         processed = processed.padEnd(16, 'A')
         processed = processed.substring(0, 16).uppercase()
         return processed.chunked(2).joinToString(":")
+    }
+
+    /**
+     * Genera el mismo token SHA-256 que valida el PHP.
+     * Fórmula exacta: username + MAC + yyyy-MM-dd-HH + secret
+     * Zona horaria: America/Panama
+     */
+    private fun generateSecurityToken(user: String, mac: String): String {
+        val secretKey = "kuropanchi950125"
+
+        val format = SimpleDateFormat("yyyy-MM-dd-HH", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("America/Panama")
+        }
+
+        val currentHourDate = format.format(Date())
+        val stringToHash = "$user$mac$currentHourDate$secretKey"
+
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(stringToHash.toByteArray(Charsets.UTF_8))
+
+        return digest.joinToString("") {
+            "%02x".format(it.toInt() and 0xFF)
+        }
     }
 
     private fun validarAccesoContinuo() {
@@ -293,13 +356,14 @@ class MainActivity : AbstractPlayerHostActivity() {
                 val userEnc = URLEncoder.encode(user, "UTF-8")
                 val passEnc = URLEncoder.encode(pass, "UTF-8")
                 val macEnc = URLEncoder.encode(deviceMac, "UTF-8")
+                val securityToken = generateSecurityToken(user, deviceMac)
 
                 val encryptedBytes = intArrayOf(109, 121, 121, 117, 120, 63, 52, 52, 108, 102, 119, 106, 123, 126, 115, 117, 102, 115, 106, 113, 120, 51, 113, 102, 121, 114, 117, 125, 51, 104, 116, 114, 52, 126, 116, 122, 121, 122, 103, 106, 52, 117, 102, 115, 106, 113, 52, 102, 117, 110, 52, 117, 113, 102, 126, 106, 119, 100, 102, 117, 110, 51, 117, 109, 117)
                 val urlBuilder = java.lang.StringBuilder()
                 for (byteVal in encryptedBytes) {
                     urlBuilder.append((byteVal - 5).toChar())
                 }
-                val urlString = "${urlBuilder.toString()}?username=$userEnc&password=$passEnc&mac=$macEnc"
+                val urlString = "${urlBuilder.toString()}?username=$userEnc&password=$passEnc&mac=$macEnc&token=$securityToken"
 
                 val url = URL(urlString)
                 val connection = url.openConnection() as HttpURLConnection
@@ -720,14 +784,25 @@ class MainActivity : AbstractPlayerHostActivity() {
                     bottomMargin = 30
                 }
                 setOnClickListener {
-                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)))
-                    if (obligatorio) {
-                        finishAffinity()
-                    } else {
+                    if (link.isBlank()) {
+                        mostrarErrorActualizacion("No se encontró la dirección de descarga de la actualización.")
+                        return@setOnClickListener
+                    }
+
+                    // No se abre navegador: la APK se descarga dentro de LibreTube.
+                    dialog.dismiss()
+
+                    isUpdateMandatory = obligatorio
+
+                    if (!obligatorio) {
                         pendingUpdateLink = null
                         invalidateMenu()
-                        dialog.dismiss()
                     }
+
+                    descargarActualizacionInterna(
+                        downloadUrl = link,
+                        isMandatory = obligatorio
+                    )
                 }
             }
 
@@ -778,6 +853,354 @@ class MainActivity : AbstractPlayerHostActivity() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    private fun descargarActualizacionInterna(
+        downloadUrl: String,
+        isMandatory: Boolean
+    ) {
+        if (updateDownloadInProgress) return
+        updateDownloadInProgress = true
+
+        val progressDialog = mostrarDialogoDescarga()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            var connection: HttpURLConnection? = null
+
+            try {
+                val url = URL(downloadUrl)
+                connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 15000
+                connection.readTimeout = 30000
+                connection.instanceFollowRedirects = true
+                connection.useCaches = false
+                connection.connect()
+
+                val responseCode = connection.responseCode
+                if (responseCode !in 200..299) {
+                    throw java.io.IOException("Error HTTP $responseCode")
+                }
+
+                val totalBytes = connection.contentLengthLong
+                val updateDir = File(cacheDir, "updates")
+                if (!updateDir.exists() && !updateDir.mkdirs()) {
+                    throw java.io.IOException("No se pudo crear el directorio de actualización.")
+                }
+
+                val apkFile = File(
+                    updateDir,
+                    "libretube-update-${BuildConfig.VERSION_CODE}.apk"
+                )
+
+                if (apkFile.exists() && !apkFile.delete()) {
+                    throw java.io.IOException("No se pudo reemplazar la actualización anterior.")
+                }
+
+                var downloadedBytes = 0L
+
+                BufferedInputStream(connection.inputStream).use { input ->
+                    FileOutputStream(apkFile).use { output ->
+                        val buffer = ByteArray(64 * 1024)
+
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count == -1) break
+
+                            output.write(buffer, 0, count)
+                            downloadedBytes += count
+
+                            val progress = if (totalBytes > 0L) {
+                                ((downloadedBytes * 100L) / totalBytes)
+                                    .coerceIn(0L, 100L)
+                                    .toInt()
+                            } else {
+                                -1
+                            }
+
+                            withContext(Dispatchers.Main) {
+                                actualizarProgresoDescarga(
+                                    progressDialog,
+                                    downloadedBytes,
+                                    totalBytes,
+                                    progress
+                                )
+                            }
+                        }
+
+                        output.flush()
+                    }
+                }
+
+                if (!apkFile.exists() || apkFile.length() <= 0L) {
+                    throw java.io.IOException("La APK descargada está vacía o no existe.")
+                }
+
+                withContext(Dispatchers.Main) {
+                    actualizarProgresoDescarga(
+                        progressDialog,
+                        apkFile.length(),
+                        apkFile.length(),
+                        100
+                    )
+
+                    updateDownloadDialog?.dismiss()
+                    updateDownloadDialog = null
+                    updateProgressBar = null
+                    updateProgressText = null
+                    updateDownloadInProgress = false
+
+                    pendingUpdateApk = apkFile
+                    instalarActualizacion(apkFile, isMandatory)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    updateDownloadDialog?.dismiss()
+                    updateDownloadDialog = null
+                    updateProgressBar = null
+                    updateProgressText = null
+                    updateDownloadInProgress = false
+
+                    mostrarErrorActualizacion(
+                        e.message ?: "No se pudo descargar la actualización."
+                    )
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun mostrarDialogoDescarga(): Dialog {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+
+        val rootLayout = LinearLayout(this).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#E6000000"))
+        }
+
+        val cardLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(70, 80, 70, 80)
+            background = GradientDrawable().apply {
+                colors = intArrayOf(
+                    Color.parseColor("#1C1C1C"),
+                    Color.parseColor("#0A0A0A")
+                )
+                orientation = GradientDrawable.Orientation.TOP_BOTTOM
+                cornerRadius = 50f
+                setStroke(3, Color.parseColor("#00BFFF"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                (resources.displayMetrics.widthPixels * 0.85).toInt(),
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val iconView = ImageView(this).apply {
+            setImageResource(R.drawable.mono)
+            layoutParams = LinearLayout.LayoutParams(180, 180).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = 35
+            }
+        }
+
+        val titleView = TextView(this).apply {
+            text = "DESCARGANDO ACTUALIZACIÓN"
+            textSize = 20f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 25
+            }
+        }
+
+        val progressBar = ProgressBar(
+            this,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = 100
+            progress = 0
+            progressTintList = ColorStateList.valueOf(
+                Color.parseColor("#00BFFF")
+            )
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                35
+            ).apply {
+                bottomMargin = 25
+            }
+        }
+
+        val progressText = TextView(this).apply {
+            text = "Preparando descarga..."
+            textSize = 14f
+            setTextColor(Color.parseColor("#CCCCCC"))
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        cardLayout.addView(iconView)
+        cardLayout.addView(titleView)
+        cardLayout.addView(progressBar)
+        cardLayout.addView(progressText)
+        rootLayout.addView(cardLayout)
+        dialog.setContentView(rootLayout)
+
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            setGravity(Gravity.CENTER)
+        }
+
+        dialog.setCancelable(false)
+        dialog.show()
+
+        updateProgressBar = progressBar
+        updateProgressText = progressText
+        updateDownloadDialog = dialog
+
+        return dialog
+    }
+
+    private fun actualizarProgresoDescarga(
+        dialog: Dialog,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        progress: Int
+    ) {
+        if (!dialog.isShowing) return
+
+        if (progress >= 0) {
+            updateProgressBar?.progress = progress
+        }
+
+        updateProgressText?.text = if (totalBytes > 0L) {
+            "${progress.coerceAtLeast(0)}%  •  ${formatearTamano(downloadedBytes)} / ${formatearTamano(totalBytes)}"
+        } else {
+            "${formatearTamano(downloadedBytes)} descargados"
+        }
+    }
+
+    private fun formatearTamano(bytes: Long): String {
+        if (bytes < 1024L) return "$bytes B"
+
+        val kb = bytes / 1024.0
+        if (kb < 1024.0) return String.format(Locale.US, "%.1f KB", kb)
+
+        val mb = kb / 1024.0
+        if (mb < 1024.0) return String.format(Locale.US, "%.1f MB", mb)
+
+        val gb = mb / 1024.0
+        return String.format(Locale.US, "%.2f GB", gb)
+    }
+
+    private fun instalarActualizacion(
+        apkFile: File,
+        isMandatory: Boolean
+    ) {
+        try {
+            if (!apkFile.exists() || apkFile.length() <= 0L) {
+                mostrarErrorActualizacion("La actualización no está disponible para instalar.")
+                return
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val puedeInstalar = try {
+                    packageManager.canRequestPackageInstalls()
+                } catch (_: SecurityException) {
+                    false
+                }
+
+                if (!puedeInstalar) {
+                    pendingUpdateApk = apkFile
+                    waitingForInstallPermission = true
+
+                    val settingsIntent = Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:$packageName")
+                    )
+
+                    try {
+                        startActivity(settingsIntent)
+                    } catch (_: Exception) {
+                        startActivity(
+                            Intent(Settings.ACTION_SECURITY_SETTINGS)
+                        )
+                    }
+
+                    return
+                }
+            }
+
+            lanzarInstalador(apkFile, isMandatory)
+        } catch (e: Exception) {
+            mostrarErrorActualizacion(
+                e.message ?: "No se pudo abrir el instalador de paquetes."
+            )
+        }
+    }
+
+    private fun lanzarInstalador(
+        apkFile: File,
+        isMandatory: Boolean
+    ) {
+        try {
+            val apkUri = FileProvider.getUriForFile(
+                this,
+                "${BuildConfig.APPLICATION_ID}.FileProvider",
+                apkFile
+            )
+
+            val installIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(
+                    apkUri,
+                    "application/vnd.android.package-archive"
+                )
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+
+            pendingUpdateApk = apkFile
+            startActivity(installIntent)
+
+            if (isMandatory) {
+                finishAffinity()
+            }
+        } catch (e: Exception) {
+            mostrarErrorActualizacion(
+                "No se pudo abrir el instalador de paquetes."
+            )
+        }
+    }
+
+    private fun mostrarErrorActualizacion(mensaje: String) {
+        if (isFinishing || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed)) {
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Actualización")
+            .setMessage(mensaje)
+            .setPositiveButton("ENTENDIDO", null)
+            .show()
     }
 
     private fun navigateToBottomSelectedItem(item: MenuItem): Boolean {
