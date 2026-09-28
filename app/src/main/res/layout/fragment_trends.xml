@@ -1,41 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:background="?android:colorBackground"
-    android:orientation="vertical">
+    android:background="?android:colorBackground">
 
-    <LinearLayout
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
 
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tab_layout"
-            android:layout_width="0dp"
+        <!-- Este LinearLayout contiene las pestañas y el botón de Región.
+             Con layout_scrollFlags le decimos que se oculte al hacer scroll -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1.0"
-            android:requiresFadingEdge="horizontal"
-            app:tabMode="scrollable" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            app:layout_scrollFlags="scroll|enterAlways|snap">
 
-        <com.google.android.material.button.MaterialButton
-            style="@style/Widget.Material3Expressive.Button.IconButton.Tonal"
-            android:id="@+id/trending_region"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="10dp"
-            android:layout_marginVertical="4dp"
-            app:icon="@drawable/ic_region"
-            app:iconSize="24dp"
-            android:tooltipText="@string/region" />
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tab_layout"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1.0"
+                android:requiresFadingEdge="horizontal"
+                app:tabMode="scrollable" />
 
-    </LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                style="@style/Widget.Material3Expressive.Button.IconButton.Tonal"
+                android:id="@+id/trending_region"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
+                android:layout_marginVertical="4dp"
+                app:icon="@drawable/ic_region"
+                app:iconSize="24dp"
+                android:tooltipText="@string/region" />
 
+        </LinearLayout>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- El ViewPager2 ahora empuja la barra hacia arriba con el layout_behavior -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/pager"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
-</LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

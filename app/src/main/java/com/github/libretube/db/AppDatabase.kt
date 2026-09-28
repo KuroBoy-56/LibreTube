@@ -50,7 +50,8 @@ import com.github.libretube.db.obj.WatchPosition
         SubscriptionGroup::class,
         SubscriptionsFeedItem::class
     ],
-    version = 25,
+    // SUBIMOS A LA VERSIÓN 26
+    version = 26,
     autoMigrations = [
         AutoMigration(from = 7, to = 8),
         AutoMigration(from = 8, to = 9),
@@ -60,7 +61,9 @@ import com.github.libretube.db.obj.WatchPosition
         AutoMigration(from = 18, to = 19),
         AutoMigration(from = 19, to = 20),
         AutoMigration(from = 20, to = 21),
-        AutoMigration(from = 24, to = 25)
+        AutoMigration(from = 24, to = 25),
+        // AÑADIMOS LA MIGRACIÓN AUTOMÁTICA DE LA 25 A LA 26
+        AutoMigration(from = 25, to = 26)
     ]
 )
 @TypeConverters(Converters::class)

@@ -200,7 +200,7 @@ class BackupRestoreSettings : BasePreferenceFragment() {
             val encodedBackupFile = resultBundle.getString(IntentData.backupFile)!!
             backupFile = Json.decodeFromString(encodedBackupFile)
             val timestamp = TextUtils.getFileSafeTimeStampNow()
-            createBackupFile.launch("libretube-backup-${timestamp}.json")
+            createBackupFile.launch("youtubemod-backup-${timestamp}.json")
         }
         val advancedBackup = findPreference<Preference>("backup")
         advancedBackup?.setOnPreferenceClickListener {

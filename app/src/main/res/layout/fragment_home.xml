@@ -1,21 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:nestedScrollingEnabled="true">
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/category_tabs"
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:tabMode="scrollable"
-        app:tabGravity="fill" />
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/category_tabs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layout_scrollFlags="scroll|enterAlways|snap"
+            app:tabMode="scrollable"
+            app:tabGravity="fill" />
+
+    </com.google.android.material.appbar.AppBarLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <com.github.libretube.ui.views.CustomSwipeToRefresh
             android:id="@+id/refresh"
@@ -83,4 +92,4 @@
             android:visibility="gone" />
 
     </FrameLayout>
-</LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

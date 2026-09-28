@@ -258,7 +258,7 @@
     <string name="rewind">กรอกลับ</string>
     <string name="forward">กรอข้าม</string>
     <string name="audio_only_mode">โหมดเสียงเท่านั้น</string>
-    <string name="audio_only_mode_summary">เปลี่ยน LibreTube ให้เป็นเครื่องเล่นเพลง</string>
+    <string name="audio_only_mode_summary">เปลี่ยน YouTube Modให้เป็นเครื่องเล่นเพลง</string>
     <string name="sleep_timer">ตั้งเวลาปิด</string>
     <string name="skip_silence">ข้ามส่วนที่เงียบ</string>
     <string name="codecs">วิดีโอ Codecs</string>
@@ -276,7 +276,7 @@
     <string name="creation_date_reversed">วันที่สร้าง (กลับกัน)</string>
     <string name="alphabetic">ตัวอักษร</string>
     <string name="alphabetic_reversed">ตัวอักษร (กลับกัน)</string>
-    <string name="welcome">ยินดีต้อนรับสู่ LibreTube</string>
+    <string name="welcome">ยินดีต้อนรับสู่YouTube Mod</string>
     <string name="choose_instance">กรุณาเลือกอินสแตนซ์ก่อน!</string>
     <string name="choose_instance_long">กรุณาเลือกอินสแตนซ์ Piped เพื่อใช้จากด้านล่าง อินสแตนซ์ Piped ทำหน้าที่เป็นคนกลางระหว่างคุณกับ YouTube อินสแตนซ์เหล่านี้ตั้งอยู่ในตำแหน่งจริงที่ต่างกันออกไป ‐ ระบุเอาไว้ด้วยธงชาติ ตำแหน่งอินสแตนซ์ที่ตั้งใกล้อยู่กับคุณมีความเป็นไปได้ที่จะเร็วกว่าอินสแตนซ์ที่ห่างไกลไป คุณสามารถเปลี่ยนอินสแตนซ์ที่คุณใช้ในการตั้งค่าได้ตลอดเวลา</string>
     <string name="mark_as_unwatched">ทำเครื่องหมายว่ายังไม่ได้ดู</string>
@@ -353,7 +353,7 @@
     <string name="change">เปลี่ยน</string>
     <string name="gestures">ท่าทาง</string>
     <string name="external_download_provider">ผู้ให้ดาวน์โหลดจากภายนอก</string>
-    <string name="external_download_provider_summary">ใส่ชื่อแพ็คเกจของแอปที่คุณจะใช้ในการดาวน์โหลดวิดีโอ ปล่อยเว้นว้างเอาไว้เพื่อใช้ตัวดาวน์โหลดของ LibreTube</string>
+    <string name="external_download_provider_summary">ใส่ชื่อแพ็คเกจของแอปที่คุณจะใช้ในการดาวน์โหลดวิดีโอ ปล่อยเว้นว้างเอาไว้เพื่อใช้ตัวดาวน์โหลดของYouTube Mod</string>
     <string name="local_stream_extraction_summary">โหลดข้อมูลวิดีโอจาก YouTube โดยตรงโดยไม่ต้องผ่าน Piped</string>
     <string name="local_ryd">ใช้ตัวดึงข้อมูล Return Youtube Dislike โดยตรง</string>
     <string name="local_ryd_summary">ดึงข้อมูลไม่ถูกใจวิดีโอผ่านทาง https://returnyoutubedislikeapi.com โดยตรง</string>

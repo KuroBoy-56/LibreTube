@@ -327,7 +327,7 @@
     <string name="alternative_pip_controls">Alternatif PiP (RiR) denetimleri</string>
     <string name="pinch_control">Kıstırma denetimi</string>
     <string name="audio_only_mode">Sadece ses modu</string>
-    <string name="audio_only_mode_summary">LibreTube uygulamasını bir müzik çalara dönüştürün</string>
+    <string name="audio_only_mode_summary">YouTube Moduygulamasını bir müzik çalara dönüştürün</string>
     <string name="no_subtitle">Alt yazı yok</string>
     <string name="download_paused">İndirme duraklatıldı</string>
     <string name="download_completed">İndirme tamamlandı</string>
@@ -369,7 +369,7 @@
     <string name="unlimited_search_history">Sınırsız arama geçmişi</string>
     <string name="show_stream_thumbnails">Video küçük resimlerini göster</string>
     <string name="show_stream_thumbnails_summary">Yeni akış ön izlemelerini göster. Bunu etkinleştirmek ek veri tüketecektir</string>
-    <string name="welcome">Libretube\'ye Hoş Geldiniz</string>
+    <string name="welcome">YouTube Mod\'ye Hoş Geldiniz</string>
     <string name="choose_instance">Lütfen önce bir isteyici seçin!</string>
     <string name="mark_as_unwatched">İzlenmedi olarak işaretle</string>
     <string name="choose_instance_long">Lütfen aşağıdan kullanmak için bir Piped isteyicisi seçin. Piped isteyicisi, siz ve YouTube arasında aracı görevi görür. Bu isteyiciler, ülke bayraklarıyla gösterilen farklı fiziksel konumlarda bulunur. Size fiziksel olarak daha yakın olan isteyiciler, muhtemelen, yakın olmayan isteyicilerden daha hızlıdır. Ayarlarda kullandığınız isteyiciyi istediğiniz zaman değiştirebilirsiniz.</string>
@@ -502,7 +502,7 @@
     <string name="thumbnail_time">Küçük resim zamanı</string>
     <string name="best_quality">En iyi</string>
     <string name="external_download_provider">Harici indirme sağlayıcısı</string>
-    <string name="external_download_provider_summary">Video indirmek için kullanmak istediğiniz uygulamanın paket adını girin. LibreTube\'un dahili indiricisini kullanmak için boş bırakın.</string>
+    <string name="external_download_provider_summary">Video indirmek için kullanmak istediğiniz uygulamanın paket adını girin.YouTube Mod\'un dahili indiricisini kullanmak için boş bırakın.</string>
     <string name="screenshot">Ekran Görüntüsü</string>
     <string name="pip">RiR</string>
     <string name="local_stream_extraction">Yerel akış çıkarımı</string>

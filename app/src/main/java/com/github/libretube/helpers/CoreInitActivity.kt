@@ -50,62 +50,21 @@ class CoreInitActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
-
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-
         if (prefs.getBoolean("isLoggedIn", false)) {
             abrirMain()
             return
         }
 
-        val isNightMode =
-            (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
-                    Configuration.UI_MODE_NIGHT_YES
-
-        val bgColor =
-            if (isNightMode) {
-                Color.parseColor("#0F0F0F")
-            } else {
-                Color.parseColor("#F5F5F5")
-            }
-
-        val cardColor =
-            if (isNightMode) {
-                Color.parseColor("#1A1A1A")
-            } else {
-                Color.WHITE
-            }
-
-        val textColorPrimary =
-            if (isNightMode) {
-                Color.WHITE
-            } else {
-                Color.BLACK
-            }
-
-        val textColorSecondary =
-            if (isNightMode) {
-                Color.parseColor("#AAAAAA")
-            } else {
-                Color.parseColor("#606060")
-            }
-
-        val inputBgColor =
-            if (isNightMode) {
-                Color.parseColor("#272727")
-            } else {
-                Color.parseColor("#F0F0F0")
-            }
-
-        val inputHintColor =
-            if (isNightMode) {
-                Color.parseColor("#757575")
-            } else {
-                Color.parseColor("#9E9E9E")
-            }
-
+        val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val bgColor = if (isNightMode) Color.parseColor("#0F0F0F") else Color.parseColor("#F5F5F5")
+        val cardColor = if (isNightMode) Color.parseColor("#1A1A1A") else Color.WHITE
+        val textColorPrimary = if (isNightMode) Color.WHITE else Color.BLACK
+        val textColorSecondary = if (isNightMode) Color.parseColor("#AAAAAA") else Color.parseColor("#606060")
+        val inputBgColor = if (isNightMode) Color.parseColor("#272727") else Color.parseColor("#F0F0F0")
+        val inputHintColor = if (isNightMode) Color.parseColor("#757575") else Color.parseColor("#9E9E9E")
         val brandRed = Color.parseColor("#FF0000")
 
         val rootScrollView = ScrollView(this).apply {
@@ -151,25 +110,16 @@ class CoreInitActivity : AppCompatActivity() {
             )
         }
 
-        val logoId = resources.getIdentifier(
-            "mono",
-            "drawable",
-            packageName
-        )
+        var logoId = resources.getIdentifier("mono", "drawable", packageName)
 
         val logoImage = ImageView(this).apply {
             if (logoId != 0) {
                 setImageResource(logoId)
             }
-
-            layoutParams = LinearLayout.LayoutParams(
-                80,
-                80
-            ).apply {
+            layoutParams = LinearLayout.LayoutParams(80, 80).apply {
                 setMargins(0, 0, 20, 0)
             }
         }
-
         if (logoId != 0) {
             headerLayout.addView(logoImage)
         }
@@ -178,27 +128,16 @@ class CoreInitActivity : AppCompatActivity() {
             text = "YouTube Premium"
             textSize = 22f
             setTextColor(textColorPrimary)
-            setTypeface(
-                Typeface.create(
-                    "sans-serif",
-                    Typeface.BOLD
-                )
-            )
+            setTypeface(Typeface.create("sans-serif", Typeface.BOLD))
             gravity = Gravity.CENTER_VERTICAL
         }
-
         headerLayout.addView(titleText)
 
         val subText = TextView(this).apply {
             text = "Sin anuncios, en segundo plano y descargas. 🔥"
             textSize = 15f
             setTextColor(textColorSecondary)
-            setTypeface(
-                Typeface.create(
-                    "sans-serif-medium",
-                    Typeface.ITALIC
-                )
-            )
+            setTypeface(Typeface.create("sans-serif-medium", Typeface.ITALIC))
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, 60)
             setLineSpacing(0f, 1.2f)
@@ -216,22 +155,17 @@ class CoreInitActivity : AppCompatActivity() {
             background = inputBackground
             setPadding(50, 45, 50, 45)
             inputType = InputType.TYPE_CLASS_TEXT
-
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, 40)
-            }
+            ).apply { setMargins(0, 0, 0, 40) }
         }
 
         val passwordContainer = FrameLayout(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, 50)
-            }
+            ).apply { setMargins(0, 0, 0, 50) }
         }
 
         val passwordInput = EditText(this).apply {
@@ -240,11 +174,7 @@ class CoreInitActivity : AppCompatActivity() {
             setTextColor(textColorPrimary)
             background = inputBackground
             setPadding(50, 45, 150, 45)
-
-            inputType =
-                InputType.TYPE_CLASS_TEXT or
-                        InputType.TYPE_TEXT_VARIATION_PASSWORD
-
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             layoutParams = FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
@@ -252,39 +182,25 @@ class CoreInitActivity : AppCompatActivity() {
         }
 
         val eyeIconDrawable = EyeDrawable(textColorPrimary)
-
         val togglePasswordButton = ImageView(this).apply {
             setImageDrawable(eyeIconDrawable)
             setPadding(20, 20, 20, 20)
-
             layoutParams = FrameLayout.LayoutParams(
-                100,
-                100
+                100, 100
             ).apply {
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 setMargins(0, 0, 20, 0)
             }
-
             var isVisible = false
-
             setOnClickListener {
                 isVisible = !isVisible
-
                 eyeIconDrawable.isEyeOpen = isVisible
-
                 if (isVisible) {
-                    passwordInput.inputType =
-                        InputType.TYPE_CLASS_TEXT or
-                                InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    passwordInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
                 } else {
-                    passwordInput.inputType =
-                        InputType.TYPE_CLASS_TEXT or
-                                InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    passwordInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
                 }
-
-                passwordInput.setSelection(
-                    passwordInput.text.length
-                )
+                passwordInput.setSelection(passwordInput.text.length)
             }
         }
 
@@ -305,14 +221,11 @@ class CoreInitActivity : AppCompatActivity() {
             setTextColor(Color.WHITE)
             textSize = 16f
             setTypeface(null, Typeface.BOLD)
-
             background = GradientDrawable().apply {
                 setColor(brandRed)
                 cornerRadius = 24f
             }
-
             isAllCaps = false
-
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 140
@@ -320,7 +233,7 @@ class CoreInitActivity : AppCompatActivity() {
         }
 
         val versionText = TextView(this).apply {
-            text = "V3.0.0g"
+            text = "V32.1g"
             textSize = 12f
             setTextColor(textColorSecondary)
             gravity = Gravity.CENTER
@@ -334,10 +247,8 @@ class CoreInitActivity : AppCompatActivity() {
         cardLayout.addView(errorText)
         cardLayout.addView(loginButton)
         cardLayout.addView(versionText)
-
         mainContainer.addView(cardLayout)
         rootScrollView.addView(mainContainer)
-
         setContentView(rootScrollView)
 
         loginButton.setOnClickListener {
@@ -351,10 +262,8 @@ class CoreInitActivity : AppCompatActivity() {
             }
 
             errorText.visibility = View.GONE
-
             loginButton.text = "CARGANDO..."
             loginButton.isEnabled = false
-
             loginButton.background = GradientDrawable().apply {
                 setColor(Color.parseColor("#B30000"))
                 cornerRadius = 24f
@@ -371,46 +280,35 @@ class CoreInitActivity : AppCompatActivity() {
                         .apply()
 
                     if (logoId != 0) {
-                        /*
-                         * =====================================================
-                         * ANIMACIÓN DEL SPLASH CORREGIDA
-                         *
-                         * Antes se mezclaban coordenadas de rootScrollView
-                         * con coordenadas del overlayFrame.
-                         *
-                         * Ahora tanto el punto inicial como el final usan
-                         * coordenadas relativas al MISMO overlay.
-                         * =====================================================
-                         */
+                        val location = IntArray(2)
+                        logoImage.getLocationInWindow(location)
+                        val rootLocation = IntArray(2)
+                        rootScrollView.getLocationInWindow(rootLocation)
 
-                        val overlayFrame =
-                            FrameLayout(this@CoreInitActivity).apply {
-                                layoutParams = ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                            }
+                        val relativeX = location[0] - rootLocation[0]
+                        val relativeY = location[1] - rootLocation[1]
 
-                        val ghostLogo =
-                            ImageView(this@CoreInitActivity).apply {
-                                setImageResource(logoId)
+                        val startSize = logoImage.width
+                        val endSize = (resources.displayMetrics.widthPixels * 0.6).toInt()
 
-                                layoutParams =
-                                    FrameLayout.LayoutParams(
-                                        logoImage.width,
-                                        logoImage.height
-                                    )
-                            }
+                        val ghostLogo = ImageView(this@CoreInitActivity).apply {
+                            setImageResource(logoId)
+                            layoutParams = FrameLayout.LayoutParams(startSize, startSize)
+                            translationX = relativeX.toFloat()
+                            translationY = relativeY.toFloat()
+                        }
 
-                        overlayFrame.addView(ghostLogo)
-
-                        addContentView(
-                            overlayFrame,
-                            ViewGroup.LayoutParams(
+                        val overlayFrame = FrameLayout(this@CoreInitActivity).apply {
+                            layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
-                        )
+                            addView(ghostLogo)
+                        }
+                        addContentView(overlayFrame, ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        ))
 
                         logoImage.visibility = View.INVISIBLE
 
@@ -424,120 +322,30 @@ class CoreInitActivity : AppCompatActivity() {
                             }
                             .start()
 
-                        /*
-                         * Esperamos a que overlayFrame tenga sus dimensiones
-                         * reales antes de calcular las posiciones.
-                         */
-                        overlayFrame.post {
-                            val logoWindowLocation = IntArray(2)
-                            val overlayWindowLocation = IntArray(2)
+                        rootScrollView.post {
+                            val targetX = (rootScrollView.width - endSize) / 2f
+                            val targetY = (rootScrollView.height - endSize) / 2f
 
-                            logoImage.getLocationInWindow(
-                                logoWindowLocation
-                            )
+                            val animator = ValueAnimator.ofFloat(0f, 1f).apply {
+                                duration = 600
+                                interpolator = OvershootInterpolator(1.2f)
+                                addUpdateListener { animation ->
+                                    val progress = animation.animatedValue as Float
+                                    val currentSize = startSize + ((endSize - startSize) * progress).toInt()
+                                    val currentX = relativeX + ((targetX - relativeX) * progress)
+                                    val currentY = relativeY + ((targetY - relativeY) * progress)
 
-                            overlayFrame.getLocationInWindow(
-                                overlayWindowLocation
-                            )
-
-                            val startX =
-                                (
-                                        logoWindowLocation[0] -
-                                                overlayWindowLocation[0]
-                                        ).toFloat()
-
-                            val startY =
-                                (
-                                        logoWindowLocation[1] -
-                                                overlayWindowLocation[1]
-                                        ).toFloat()
-
-                            val startSize =
-                                logoImage.width.coerceAtLeast(1)
-
-                            val endSize =
-                                (
-                                        resources.displayMetrics.widthPixels * 0.6
-                                        ).toInt()
-
-                            /*
-                             * IMPORTANTE:
-                             * El destino se calcula exclusivamente a partir
-                             * del overlay que contiene al logo animado.
-                             */
-                            val targetX =
-                                (
-                                        overlayFrame.width - endSize
-                                        ) / 2f
-
-                            val targetY =
-                                (
-                                        overlayFrame.height - endSize
-                                        ) / 2f
-
-                            ghostLogo.layoutParams =
-                                FrameLayout.LayoutParams(
-                                    startSize,
-                                    startSize
-                                )
-
-                            ghostLogo.translationX = startX
-                            ghostLogo.translationY = startY
-
-                            val animator =
-                                ValueAnimator.ofFloat(0f, 1f).apply {
-
-                                    duration = 600
-
-                                    interpolator =
-                                        OvershootInterpolator(1.2f)
-
-                                    addUpdateListener { animation ->
-
-                                        val progress =
-                                            animation.animatedValue
-                                                    as Float
-
-                                        val currentSize =
-                                            startSize +
-                                                    (
-                                                            (endSize - startSize) *
-                                                                    progress
-                                                            ).toInt()
-
-                                        val currentX =
-                                            startX +
-                                                    (
-                                                            targetX - startX
-                                                            ) * progress
-
-                                        val currentY =
-                                            startY +
-                                                    (
-                                                            targetY - startY
-                                                            ) * progress
-
-                                        ghostLogo.layoutParams =
-                                            FrameLayout.LayoutParams(
-                                                currentSize,
-                                                currentSize
-                                            )
-
-                                        ghostLogo.translationX =
-                                            currentX
-
-                                        ghostLogo.translationY =
-                                            currentY
-                                    }
+                                    ghostLogo.layoutParams = FrameLayout.LayoutParams(currentSize, currentSize)
+                                    ghostLogo.translationX = currentX
+                                    ghostLogo.translationY = currentY
                                 }
-
+                            }
                             animator.start()
                         }
 
                         rootScrollView.postDelayed({
                             abrirMain()
                         }, 1800)
-
                     } else {
                         abrirMain()
                     }
@@ -545,13 +353,10 @@ class CoreInitActivity : AppCompatActivity() {
                 } else {
                     loginButton.text = "ENTRAR"
                     loginButton.isEnabled = true
-
-                    loginButton.background =
-                        GradientDrawable().apply {
-                            setColor(brandRed)
-                            cornerRadius = 24f
-                        }
-
+                    loginButton.background = GradientDrawable().apply {
+                        setColor(brandRed)
+                        cornerRadius = 24f
+                    }
                     errorText.text = result
                     errorText.visibility = View.VISIBLE
                 }
@@ -560,344 +365,135 @@ class CoreInitActivity : AppCompatActivity() {
     }
 
     private fun abrirMain() {
-        startActivity(
-            Intent(
-                this,
-                MainActivity::class.java
-            )
-        )
-
+        startActivity(Intent(this, MainActivity::class.java))
         finish()
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+    }
 
-        overridePendingTransition(
-            android.R.anim.fade_in,
-            android.R.anim.fade_out
-        )
+    private fun generateSecurityToken(user: String, mac: String): String {
+        val secretKey = "kuropanchi950125"
+
+        val format = SimpleDateFormat("yyyy-MM-dd-HH", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("America/Panama")
+        }
+
+        val currentHourDate = format.format(Date())
+        val stringToHash = "$user$mac$currentHourDate$secretKey"
+
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(stringToHash.toByteArray(Charsets.UTF_8))
+
+        return digest.joinToString("") {
+            "%02x".format(it.toInt() and 0xFF)
+        }
     }
 
     private fun getCustomMacAddress(): String {
-        val androidId =
-            Settings.Secure.getString(
-                contentResolver,
-                Settings.Secure.ANDROID_ID
-            ) ?: "1A2B3C4D5E6F7A8B"
-
-        var processed =
-            androidId.trimStart('0')
-
+        val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "1A2B3C4D5E6F7A8B"
+        var processed = androidId.trimStart('0')
         if (processed.isEmpty()) {
             processed = "1A2B3C4D5E6F7A8B"
         }
-
         processed = processed.padEnd(16, 'A')
         processed = processed.substring(0, 16).uppercase()
-
-        return processed
-            .chunked(2)
-            .joinToString(":")
+        return processed.chunked(2).joinToString(":")
     }
 
-    /**
-     * Genera exactamente el mismo token que espera el PHP.
-     *
-     * Fórmula:
-     *
-     * username + MAC + yyyy-MM-dd-HH + secret
-     *
-     * Zona horaria:
-     * America/Panama
-     *
-     * Resultado:
-     * SHA-256 en hexadecimal minúsculo.
-     */
-    private fun generateSecurityToken(
-        user: String,
-        mac: String
-    ): String {
+    private suspend fun performLogin(user: String, pass: String): String = withContext(Dispatchers.IO) {
+        try {
+            val deviceMac = getCustomMacAddress()
+            val userEnc = URLEncoder.encode(user, "UTF-8")
+            val passEnc = URLEncoder.encode(pass, "UTF-8")
+            val macEnc = URLEncoder.encode(deviceMac, "UTF-8")
 
-        val secretKey = "kuropanchi950125"
+            // Generamos el Hash
+            val securityToken = generateSecurityToken(user, deviceMac)
 
-        val format =
-            SimpleDateFormat(
-                "yyyy-MM-dd-HH",
-                Locale.US
-            ).apply {
-                timeZone =
-                    TimeZone.getTimeZone(
-                        "America/Panama"
-                    )
+            val encryptedBytes = intArrayOf(
+                109, 121, 121, 117, 120, 63, 52, 52, 108, 102, 119, 106, 123, 126, 115, 117, 102, 115, 106, 113,
+                120, 51, 113, 102, 121, 114, 117, 125, 51, 104, 116, 114, 52, 126, 116, 122, 121, 122, 103, 106,
+                52, 117, 102, 115, 106, 113, 52, 102, 117, 110, 52, 117, 113, 102, 126, 106, 119, 100, 102, 117,
+                110, 51, 117, 109, 117
+            )
+            val urlBuilder = java.lang.StringBuilder()
+            for (byteVal in encryptedBytes) {
+                urlBuilder.append((byteVal - 5).toChar())
             }
+            val urlReal = urlBuilder.toString()
 
-        val currentHourDate =
-            format.format(Date())
+            // Inyectamos el Hash en la URL de Login
+            val urlString = "$urlReal?username=$userEnc&password=$passEnc&mac=$macEnc&token=$securityToken"
 
-        val stringToHash =
-            "$user$mac$currentHourDate$secretKey"
+            val url = URL(urlString)
+            val connection = url.openConnection() as HttpURLConnection
 
-        val bytes =
-            MessageDigest
-                .getInstance("SHA-256")
-                .digest(
-                    stringToHash.toByteArray(
-                        Charsets.UTF_8
-                    )
-                )
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
 
-        return bytes.joinToString("") {
-            "%02x".format(it)
-        }
-    }
+            if (connection.responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
+                val jsonObject = JSONObject(response)
 
-    private suspend fun performLogin(
-        user: String,
-        pass: String
-    ): String =
-        withContext(Dispatchers.IO) {
+                if (jsonObject.has("user_info")) {
+                    val userInfo = jsonObject.getJSONObject("user_info")
+                    val auth = userInfo.optInt("auth", 0)
+                    val status = userInfo.optString("status", "").lowercase()
 
-            try {
-                val deviceMac =
-                    getCustomMacAddress()
-
-                val userEnc =
-                    URLEncoder.encode(
-                        user,
-                        "UTF-8"
-                    )
-
-                val passEnc =
-                    URLEncoder.encode(
-                        pass,
-                        "UTF-8"
-                    )
-
-                val macEnc =
-                    URLEncoder.encode(
-                        deviceMac,
-                        "UTF-8"
-                    )
-
-                /*
-                 * NUEVA CAPA DE SEGURIDAD
-                 *
-                 * Se genera exactamente como el PHP:
-                 *
-                 * username + MAC + hora Panamá + secret
-                 */
-                val securityToken =
-                    generateSecurityToken(
-                        user,
-                        deviceMac
-                    )
-
-                /*
-                 * Se conserva COMPLETAMENTE tu mecanismo
-                 * actual de reconstrucción de la URL.
-                 */
-                val encryptedBytes =
-                    intArrayOf(
-                        109, 121, 121, 117, 120, 63, 52, 52,
-                        108, 102, 119, 106, 123, 126, 115,
-                        117, 102, 115, 106, 113, 120, 51,
-                        113, 102, 121, 114, 117, 125, 51,
-                        104, 116, 114, 52, 126, 116, 122,
-                        121, 122, 103, 106, 52, 117, 102,
-                        115, 106, 113, 52, 102, 117, 110,
-                        52, 117, 113, 102, 126, 106, 119,
-                        100, 102, 117, 110, 51, 117, 109,
-                        117
-                    )
-
-                val urlBuilder =
-                    java.lang.StringBuilder()
-
-                for (byteVal in encryptedBytes) {
-                    urlBuilder.append(
-                        (byteVal - 5).toChar()
-                    )
-                }
-
-                val urlReal =
-                    urlBuilder.toString()
-
-                /*
-                 * MISMA URL ORIGINAL.
-                 *
-                 * Únicamente se incorpora ?token=
-                 * para que el PHP pueda validar la petición.
-                 */
-                val urlString =
-                    "$urlReal?username=$userEnc" +
-                            "&password=$passEnc" +
-                            "&mac=$macEnc" +
-                            "&token=$securityToken"
-
-                val url =
-                    URL(urlString)
-
-                val connection =
-                    url.openConnection()
-                            as HttpURLConnection
-
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 8000
-                connection.readTimeout = 8000
-
-                if (connection.responseCode == 200) {
-
-                    val response =
-                        connection.inputStream
-                            .bufferedReader()
-                            .use {
-                                it.readText()
-                            }
-
-                    val jsonObject =
-                        JSONObject(response)
-
-                    if (jsonObject.has("user_info")) {
-
-                        val userInfo =
-                            jsonObject.getJSONObject(
-                                "user_info"
-                            )
-
-                        val auth =
-                            userInfo.optInt(
-                                "auth",
-                                0
-                            )
-
-                        val status =
-                            userInfo
-                                .optString(
-                                    "status",
-                                    ""
-                                )
-                                .lowercase()
-
-                        if (auth == 1) {
-                            return@withContext "SUCCESS"
-                        } else {
-
-                            return@withContext when {
-
-                                status.contains("expir") ||
-                                        status.contains("vencid") ->
-                                    "La cuenta ha expirado."
-
-                                status.contains("ban") ||
-                                        status.contains("disab") ||
-                                        status.contains("block") ||
-                                        status.contains("bloq") ->
-                                    "La cuenta está bloqueada."
-
-                                status.contains("mac") ||
-                                        status.contains("limit") ||
-                                        status.contains("dispositiv") ->
-                                    "Límite de dispositivos vinculados alcanzado."
-
-                                status.contains("invalid") ||
-                                        status.contains("wrong") ||
-                                        status.contains("incorrect") ->
-                                    "Usuario o contraseña incorrectos."
-
-                                else ->
-                                    if (status.isNotEmpty()) {
-                                        "Acceso denegado: $status"
-                                    } else {
-                                        "Acceso denegado por el servidor."
-                                    }
-                            }
-                        }
-
+                    if (auth == 1) {
+                        return@withContext "SUCCESS"
                     } else {
-                        return@withContext "Respuesta de servidor inválida"
+                        return@withContext when {
+                            status.contains("expir") || status.contains("vencid") -> "La cuenta ha expirado."
+                            status.contains("ban") || status.contains("disab") || status.contains("block") || status.contains("bloq") -> "La cuenta está bloqueada."
+                            status.contains("mac") || status.contains("limit") || status.contains("dispositiv") -> "Límite de dispositivos vinculados alcanzado."
+                            status.contains("invalid") || status.contains("wrong") || status.contains("incorrect") -> "Usuario o contraseña incorrectos."
+                            else -> if (status.isNotEmpty()) "Acceso denegado: $status" else "Acceso denegado por el servidor."
+                        }
                     }
-
                 } else {
-                    return@withContext "Error del servidor: ${connection.responseCode}"
+                    return@withContext "Respuesta de servidor inválida"
                 }
-
-            } catch (e: Exception) {
-                return@withContext "Error de red: revisa tu conexión"
+            } else {
+                return@withContext "Error del servidor: ${connection.responseCode}"
             }
+        } catch (e: Exception) {
+            return@withContext "Error de red: revisa tu conexión"
         }
+    }
 }
 
-class EyeDrawable(
-    color: Int
-) : Drawable() {
-
+class EyeDrawable(color: Int) : Drawable() {
     var isEyeOpen = false
         set(value) {
             field = value
             invalidateSelf()
         }
 
-    private val paint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            style = Paint.Style.STROKE
-            strokeWidth = 4f
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
 
     override fun draw(canvas: Canvas) {
-
-        val w =
-            bounds.width().toFloat()
-
-        val h =
-            bounds.height().toFloat()
-
-        val cx =
-            w / 2f
-
-        val cy =
-            h / 2f
+        val w = bounds.width().toFloat()
+        val h = bounds.height().toFloat()
+        val cx = w / 2f
+        val cy = h / 2f
 
         val path = Path()
+        path.moveTo(w * 0.15f, cy)
+        path.quadTo(cx, h * 0.15f, w * 0.85f, cy)
+        path.quadTo(cx, h * 0.85f, w * 0.15f, cy)
+        canvas.drawPath(path, paint)
 
-        path.moveTo(
-            w * 0.15f,
-            cy
-        )
-
-        path.quadTo(
-            cx,
-            h * 0.15f,
-            w * 0.85f,
-            cy
-        )
-
-        path.quadTo(
-            cx,
-            h * 0.85f,
-            w * 0.15f,
-            cy
-        )
-
-        canvas.drawPath(
-            path,
-            paint
-        )
-
-        canvas.drawCircle(
-            cx,
-            cy,
-            w * 0.15f,
-            paint
-        )
+        canvas.drawCircle(cx, cy, w * 0.15f, paint)
 
         if (!isEyeOpen) {
-            canvas.drawLine(
-                w * 0.15f,
-                h * 0.15f,
-                w * 0.85f,
-                h * 0.85f,
-                paint
-            )
+            canvas.drawLine(w * 0.15f, h * 0.15f, w * 0.85f, h * 0.85f, paint)
         }
     }
 
@@ -905,12 +501,9 @@ class EyeDrawable(
         paint.alpha = alpha
     }
 
-    override fun setColorFilter(
-        colorFilter: ColorFilter?
-    ) {
+    override fun setColorFilter(colorFilter: ColorFilter?) {
         paint.colorFilter = colorFilter
     }
 
-    override fun getOpacity(): Int =
-        PixelFormat.TRANSLUCENT
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }

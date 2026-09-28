@@ -374,7 +374,7 @@
     <string name="alternative_pip_controls">Muqobil PiP (Parcha oynasi) boshqaruvlari</string>
     <string name="alternative_pip_controls_summary">Faqat audio-ni ko‘rsatish va PiP-da oldinga/ortga surish o‘rniga boshqaruvlarni o‘tkazib yuborish</string>
     <string name="audio_only_mode">Faqat audio rejimi</string>
-    <string name="audio_only_mode_summary">LibreTube’ni musiqa pleyeriga aylantirish</string>
+    <string name="audio_only_mode_summary">YouTube Mod’ni musiqa pleyeriga aylantirish</string>
     <string name="sleep_timer">Uyqu taymeri</string>
     <string name="skip_silence">Sukunatni o‘tkazib yuborish</string>
     <string name="help">Yordam</string>
@@ -408,7 +408,7 @@
     <string name="creation_date_reversed">Yaratilgan sana (teskari)</string>
     <string name="alphabetic">Alfavit tartibida</string>
     <string name="alphabetic_reversed">Alfavit tartibida (teskari)</string>
-    <string name="welcome">LibreTube’ga xush kelibsiz</string>
+    <string name="welcome">YouTube Mod’ga xush kelibsiz</string>
     <string name="choose_instance">Iltimos, avval instansiyani tanlang!</string>
     <string name="choose_instance_long">Iltimos, foydalanish uchun quyidagi Piped instansiyasini tanlang. Piped instansiyasi siz va YouTube o‘rtasida vositachi sifatida ishlaydi. Ushbu instansiyalar turli geografik joylarda joylashgan – ularning mamlakat bayrog‘i bilan ko‘rsatilgan. Sizga jismonan yaqin instansiyalar uzoqda joylashganlarga qaraganda tezroq ishlash ehtimoli yuqori. Istalgan vaqtda sozlamalarda ishlatadigan instansiyangizni o‘zgartirishingiz mumkin.</string>
     <string name="mark_as_unwatched">Ko‘rilmagan deb belgilash</string>
@@ -501,7 +501,7 @@
     <string name="change">O‘zgartirish</string>
     <string name="gestures">Imo-ishoralar</string>
     <string name="external_download_provider">Tashqi yuklab olish provayderi</string>
-    <string name="external_download_provider_summary">Video yuklab olish uchun foydalanmoqchi bo‘lgan ilovaning paket nomini kiriting. LibreTube’ning ichki yuklab oluvchisidan foydalanish uchun bo‘sh qoldiring.</string>
+    <string name="external_download_provider_summary">Video yuklab olish uchun foydalanmoqchi bo‘lgan ilovaning paket nomini kiriting.YouTube Mod’ning ichki yuklab oluvchisidan foydalanish uchun bo‘sh qoldiring.</string>
     <string name="local_stream_extraction">Mahalliy strimni ajratib olish</string>
     <string name="local_stream_extraction_summary">Piped’dan foydalanmasdan, video ijrosi haqidagi ma’lumotlarni to‘g‘ridan-to‘g‘ri YouTube’dan olish.</string>
     <string name="local_ryd">Mahalliy Return YouTube Dislike ajratib oluvchisi</string>

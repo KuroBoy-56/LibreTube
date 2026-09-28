@@ -231,7 +231,7 @@
     <string name="notification_time_summary">Aikaväli, jolloin ilmoitukset voidaan näyttää</string>
     <string name="layout">Asettelu</string>
     <string name="username_email">Sähköpostiosoitteen käyttö käyttäjänimenä ei ole suositeltua. Jatketaanko silti?</string>
-    <string name="audio_only_mode_summary">Muuta LibreTube musiikkisoittimeksi</string>
+    <string name="audio_only_mode_summary">Muuta YouTube Modmusiikkisoittimeksi</string>
     <string name="sleep_timer">Uniajastin</string>
     <string name="stats_for_nerds">Tilastot nörteille</string>
     <string name="video_id">Video ID</string>
@@ -461,7 +461,7 @@
     <string name="export_playlists_to">Vie soittolistat kohteeseen</string>
     <string name="home_tab_content">Koti-välilehden sisältö</string>
     <string name="mark_as_unwatched">Merkitse katsomattomaksi</string>
-    <string name="welcome">Tervetuloa LibreTubeen</string>
+    <string name="welcome">TervetuloaYouTube Moden</string>
     <string name="change_playlist_description">Muuta soittolistan kuvausta</string>
     <string name="show_search_suggestions">Näytä hakuehdotukset</string>
     <string name="sb_custom_colors">Mukautetut osion värit</string>
@@ -549,7 +549,7 @@
     <string name="download_playlist_note">Valitse korkein äänen/videon laatu tallennuksille. Tekstitykset tallennetaan vain jos mahdollista.</string>
     <string name="playback_during_call_summary">Huomioi, että tämä vaikuttaa sovellukseen siten, että se ei käsittele jatkossa äänen fokusta</string>
     <string name="import_temp_playlist_summary">Haluatko luoda uuden soittolistan nimellä \'%1$s\'? Soittolista sisältää %2$d videota.</string>
-    <string name="external_download_provider_summary">Syötä videotallennussovelluksen paketin nimi. Jätä tyhjäksi käyttääksesi LibreTuben sisäänrakennettua tallentajaa.</string>
+    <string name="external_download_provider_summary">Syötä videotallennussovelluksen paketin nimi. Jätä tyhjäksi käyttääksesiYouTube Modn sisäänrakennettua tallentajaa.</string>
     <string name="category_highlight_summary">Voi olla mainostettu otsikko, pienoiskuvake tai kaikkein mielenkiintoisin osa videosta. Voit ohittaa sen napauttamalla sitä kappaleosiossa</string>
     <string name="category_hook_summary">Narratiivisia koukkuja varten, jotka kaappaavat katsojan huomion (usein aivan videon alussa) kiusoittelemalla tai kuvailemalla tapahtumia, jotka tapahtuvat myöhemmin samalla videolla tai sarjan myöhemmissa jaksoissa</string>
     <string name="choose_instance_long">Valitse Piped-instanssi alempaa. Piped-instanssi toimii välikätenä sinun ja YouTuben välillä. Nämä instanssin sijaitsevat fyysisesti eri sijainneissa - merkittynä maakohtaisin lipuin. Sinua lähempänä instanssit ovat todennäköisesti nopeampia kuin muut. Voit vaihtaa käyttämääsi instanssia asetuksista milloin tahansa.</string>

@@ -132,7 +132,6 @@ class MainActivity : AbstractPlayerHostActivity() {
     private var pendingUpdateNotes: String? = null
     private var isUpdateMandatory: Boolean = false
 
-    // Actualizador interno: conserva la URL y la comprobación de versiones de LibreTube.
     private var updateDownloadDialog: Dialog? = null
     private var updateProgressBar: ProgressBar? = null
     private var updateProgressText: TextView? = null
@@ -194,9 +193,12 @@ class MainActivity : AbstractPlayerHostActivity() {
                 ViewTreeObserver.OnGlobalLayoutListener {
                 override fun onGlobalLayout() {
                     with(binding.appBarLayout) {
+                        setPadding(paddingLeft, 0, paddingRight, paddingBottom)
+                    }
+                    with(binding.toolbar) {
                         setPadding(
                             paddingLeft,
-                            systemBarInsets.top,
+                            systemBarInsets.top + 2, // ¡Ajuste aquí para subir las sugerencias!
                             paddingRight,
                             paddingBottom
                         )
@@ -213,6 +215,7 @@ class MainActivity : AbstractPlayerHostActivity() {
                 }
             })
         }
+
         binding.bottomNav.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             val transition = binding.root.getTransition(R.id.bottom_bar_transition)
             transition.keyFrameList.forEach { keyFrame ->
@@ -284,7 +287,6 @@ class MainActivity : AbstractPlayerHostActivity() {
 
     override fun onResume() {
         super.onResume()
-        validarAccesoContinuo()
 
         if (waitingForInstallPermission && pendingUpdateApk != null) {
             val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -305,105 +307,6 @@ class MainActivity : AbstractPlayerHostActivity() {
                         isUpdateMandatory
                     )
                 }
-            }
-        }
-    }
-
-    private fun getCustomMacAddress(): String {
-        val androidId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID) ?: "1A2B3C4D5E6F7A8B"
-        var processed = androidId.trimStart('0')
-        if (processed.isEmpty()) {
-            processed = "1A2B3C4D5E6F7A8B"
-        }
-        processed = processed.padEnd(16, 'A')
-        processed = processed.substring(0, 16).uppercase()
-        return processed.chunked(2).joinToString(":")
-    }
-
-    /**
-     * Genera el mismo token SHA-256 que valida el PHP.
-     * Fórmula exacta: username + MAC + yyyy-MM-dd-HH + secret
-     * Zona horaria: America/Panama
-     */
-    private fun generateSecurityToken(user: String, mac: String): String {
-        val secretKey = "kuropanchi950125"
-
-        val format = SimpleDateFormat("yyyy-MM-dd-HH", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("America/Panama")
-        }
-
-        val currentHourDate = format.format(Date())
-        val stringToHash = "$user$mac$currentHourDate$secretKey"
-
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(stringToHash.toByteArray(Charsets.UTF_8))
-
-        return digest.joinToString("") {
-            "%02x".format(it.toInt() and 0xFF)
-        }
-    }
-
-    private fun validarAccesoContinuo() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val prefs = getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
-                val user = prefs.getString("saved_user", "") ?: ""
-                val pass = prefs.getString("saved_pass", "") ?: ""
-
-                if (user.isEmpty() || pass.isEmpty()) return@launch
-
-                val deviceMac = getCustomMacAddress()
-                val userEnc = URLEncoder.encode(user, "UTF-8")
-                val passEnc = URLEncoder.encode(pass, "UTF-8")
-                val macEnc = URLEncoder.encode(deviceMac, "UTF-8")
-                val securityToken = generateSecurityToken(user, deviceMac)
-
-                val encryptedBytes = intArrayOf(109, 121, 121, 117, 120, 63, 52, 52, 108, 102, 119, 106, 123, 126, 115, 117, 102, 115, 106, 113, 120, 51, 113, 102, 121, 114, 117, 125, 51, 104, 116, 114, 52, 126, 116, 122, 121, 122, 103, 106, 52, 117, 102, 115, 106, 113, 52, 102, 117, 110, 52, 117, 113, 102, 126, 106, 119, 100, 102, 117, 110, 51, 117, 109, 117)
-                val urlBuilder = java.lang.StringBuilder()
-                for (byteVal in encryptedBytes) {
-                    urlBuilder.append((byteVal - 5).toChar())
-                }
-                val urlString = "${urlBuilder.toString()}?username=$userEnc&password=$passEnc&mac=$macEnc&token=$securityToken"
-
-                val url = URL(urlString)
-                val connection = url.openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 8000
-                connection.readTimeout = 8000
-
-                if (connection.responseCode == 200) {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val jsonObject = JSONObject(response)
-
-                    if (jsonObject.has("user_info")) {
-                        val userInfo = jsonObject.getJSONObject("user_info")
-                        val auth = userInfo.optInt("auth", 0)
-                        val status = userInfo.optString("status", "").lowercase()
-
-                        if (auth != 1 || status == "expired" || status == "banned" || status == "disabled") {
-                            withContext(Dispatchers.Main) {
-                                if (!isFinishing && !isDestroyed) {
-                                    prefs.edit().clear().apply()
-                                    val intent = Intent(this@MainActivity, CoreInitActivity::class.java)
-                                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    startActivity(intent)
-                                    finish()
-                                }
-                            }
-                        }
-                    } else {
-                        withContext(Dispatchers.Main) {
-                            if (!isFinishing && !isDestroyed) {
-                                prefs.edit().clear().apply()
-                                val intent = Intent(this@MainActivity, CoreInitActivity::class.java)
-                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                startActivity(intent)
-                                finish()
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) {
             }
         }
     }
@@ -789,7 +692,6 @@ class MainActivity : AbstractPlayerHostActivity() {
                         return@setOnClickListener
                     }
 
-                    // No se abre navegador: la APK se descarga dentro de LibreTube.
                     dialog.dismiss()
 
                     isUpdateMandatory = obligatorio
@@ -1310,6 +1212,20 @@ class MainActivity : AbstractPlayerHostActivity() {
         checkUnreadAnnouncements()
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
+            // --- REGLA DINÁMICA DE AUTO-OCULTADO ---
+            val params = binding.toolbar.layoutParams as com.google.android.material.appbar.AppBarLayout.LayoutParams
+            if (destination.id == R.id.homeFragment || destination.id == R.id.trendsFragment) {
+                // En Home y Tendencias se esconde por completo al hacer scroll hacia arriba
+                params.scrollFlags = com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SCROLL or
+                        com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_ENTER_ALWAYS or
+                        com.google.android.material.appbar.AppBarLayout.LayoutParams.SCROLL_FLAG_SNAP
+            } else {
+                // En Biblioteca y Suscripciones se queda 100% fijo sin moverse
+                params.scrollFlags = 0
+            }
+            binding.toolbar.layoutParams = params
+            // ----------------------------------------
+
             when (destination.id) {
                 R.id.libraryFragment -> {
                     searchItem.isVisible = true

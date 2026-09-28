@@ -326,7 +326,7 @@
     <string name="alternative_pip_controls_summary">Chỉ hiển thị âm thanh và bỏ qua các điều khiển trong HtH thay vì tua đi và tua lại</string>
     <string name="disable_proxy">Vô hiệu hóa proxy Piped</string>
     <string name="home_tab_content">Nội dung thẻ trang chủ</string>
-    <string name="audio_only_mode_summary">Biến LibreTube thành một trình phát nhạc</string>
+    <string name="audio_only_mode_summary">Biến YouTube Modthành một trình phát nhạc</string>
     <string name="sb_custom_colors">Tùy chỉnh màu phân đoạn</string>
     <string name="app_backup">Sao lưu ứng dụng</string>
     <string name="sleep_timer">Hẹn giờ ngủ</string>
@@ -376,7 +376,7 @@
     <string name="alphabetic">Theo chữ cái</string>
     <string name="alphabetic_reversed">Theo chữ cái (ngược lên)</string>
     <string name="creation_date_reversed">Ngày tạo (đảo ngược)</string>
-    <string name="welcome">Chào mừng đến với LibreTube</string>
+    <string name="welcome">Chào mừng đến vớiYouTube Mod</string>
     <string name="choose_instance">Vui lòng chọn một máy chủ trước đã!</string>
     <plurals name="channel_new_streams">
         <item quantity="other">%d đoạn phim mới</item>
@@ -540,7 +540,7 @@
         <item quantity="other">%d phút</item>
     </plurals>
     <string name="external_download_provider">Dịch vụ tải đoạn phim bên ngoài</string>
-    <string name="external_download_provider_summary">Điền id ứng dụng mà bạn muốn dùng để tải đoạn phim. Bỏ trống để dùng dịch vụ tải đoạn phim có sẵn của LibreTube.</string>
+    <string name="external_download_provider_summary">Điền id ứng dụng mà bạn muốn dùng để tải đoạn phim. Bỏ trống để dùng dịch vụ tải đoạn phim có sẵn củaYouTube Mod.</string>
     <string name="local_stream_extraction">Trính xuất đoạn phim từ nguồn</string>
     <string name="local_stream_extraction_summary">Trực tiếp trích xuất thông tin phát lại của đoạn phim từ YouTube mà không dùng đến Piped.</string>
     <string name="local_ryd">Trích xuất từ Return Youtube Dislike</string>
