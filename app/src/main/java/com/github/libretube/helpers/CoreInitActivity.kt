@@ -233,7 +233,7 @@ class CoreInitActivity : AppCompatActivity() {
         }
 
         val versionText = TextView(this).apply {
-            text = "V32.1g"
+            text = "V3.2.1g"
             textSize = 12f
             setTextColor(textColorSecondary)
             gravity = Gravity.CENTER
