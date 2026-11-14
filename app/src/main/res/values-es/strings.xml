@@ -578,4 +578,5 @@
     <string name="shorts_subscribed">Suscrito</string>
     <string name="shorts_more">Más</string>
     <string name="shorts_like">Me gusta</string>
+    <string name="shorts_close">Cerrar</string>
 </resources>

@@ -595,4 +595,5 @@
     <string name="shorts_subscribed">Subscribed</string>
     <string name="shorts_more">More</string>
     <string name="shorts_like">Like</string>
+    <string name="shorts_close">Close</string>
 </resources>

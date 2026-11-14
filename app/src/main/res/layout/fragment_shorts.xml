@@ -14,6 +14,83 @@
         android:layout_height="match_parent"
         android:orientation="vertical" />
 
+    <!-- Comentarios, como la app de YouTube: el Short se achica arriba (sigue sonando) y los
+         comentarios aparecen abajo. La altura y la animación las pone ShortsFragment. -->
+    <LinearLayout
+        android:id="@+id/shorts_comments_panel"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/shorts_comments_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Tirador y título: arrastrar hacia abajo cierra los comentarios -->
+        <LinearLayout
+            android:id="@+id/shorts_comments_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <View
+                android:layout_width="40dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/shorts_drag_handle" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingStart="16dp"
+                android:paddingEnd="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/comments"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/shorts_comments_count"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="15sp" />
+
+                <ImageView
+                    android:id="@+id/shorts_comments_close"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/shorts_close"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_close"
+                    app:tint="?android:attr/textColorPrimary" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#22888888" />
+        </LinearLayout>
+
+        <!-- Misma lista y respuestas de comentarios que el reproductor (CommentsMainFragment) -->
+        <FrameLayout
+            android:id="@+id/commentFragContainer"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+
     <ProgressBar
         android:id="@+id/shorts_loading"
         android:layout_width="48dp"

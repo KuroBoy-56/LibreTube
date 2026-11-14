@@ -1,5 +1,6 @@
 package com.github.libretube.ui.fragments
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
@@ -7,18 +8,27 @@ import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
 import android.util.Rational
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.annotation.OptIn
+import androidx.core.animation.doOnEnd
 import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.doOnNextLayout
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.activityViewModels
+import androidx.fragment.app.commit
+import androidx.fragment.app.replace
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -37,17 +47,20 @@ import com.github.libretube.api.SubscriptionHelper
 import com.github.libretube.api.obj.Streams
 import com.github.libretube.compat.PictureInPictureCompat
 import com.github.libretube.compat.PictureInPictureParamsCompat
+import com.github.libretube.constants.IntentData
 import com.github.libretube.databinding.FragmentShortsBinding
 import com.github.libretube.extensions.formatShort
 import com.github.libretube.extensions.toID
 import com.github.libretube.helpers.ImageHelper
+import com.github.libretube.helpers.IntentHelper
 import com.github.libretube.helpers.NavigationHelper
 import com.github.libretube.helpers.PlayerHelper
 import com.github.libretube.helpers.ShortsMediaSources
-import com.github.libretube.parcelable.PlayerData
 import com.github.libretube.ui.activities.MainActivity
 import com.github.libretube.ui.adapters.ShortsPagerAdapter
+import com.github.libretube.ui.models.CommentsViewModel
 import com.github.libretube.ui.models.ShortsViewModel
+import com.github.libretube.ui.sheets.CommentsSheet
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -132,6 +145,8 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         view.addOnLayoutChangeListener(bottomBarListener)
         view.post { fitAboveBottomBar() }
 
+        setupComments()
+
         viewModel.ensureFeed()
     }
 
@@ -164,6 +179,192 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         super.onStop()
         // La ventana de imagen en imagen se cerró (o la app quedó atrás): el Short se detiene.
         if (!isInPictureInPicture()) player?.pause()
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Comentarios (como la app de YouTube): el Short se achica arriba, sigue sonando completo y
+    // abajo se abren los comentarios con la misma lista y respuestas que el reproductor.
+    // ---------------------------------------------------------------------------------------
+
+    private val commentsViewModel: CommentsViewModel by activityViewModels()
+    private var commentsOpen = false
+    private var commentsAnimator: ValueAnimator? = null
+
+    /** 0 = cerrados, 1 = abiertos (también mientras se arrastran). */
+    private var commentsProgress = 0f
+
+    /** Atrás: primero sale de las respuestas, después cierra los comentarios. */
+    private val commentsBackCallback = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            if (childFragmentManager.backStackEntryCount > 0) {
+                childFragmentManager.popBackStack()
+            } else {
+                closeComments()
+            }
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupComments() {
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, commentsBackCallback)
+        binding.shortsCommentsClose.setOnClickListener { closeComments() }
+
+        commentsViewModel.commentCountLiveData.observe(viewLifecycleOwner) { count ->
+            _binding?.shortsCommentsCount?.text = count?.formatShort().orEmpty()
+        }
+
+        // Lo que piden la lista y las respuestas (los mismos avisos que en el reproductor).
+        childFragmentManager.setFragmentResultListener(
+            CommentsSheet.DISMISS_SHEET_REQUEST_KEY, viewLifecycleOwner
+        ) { _, _ -> closeComments(animated = false) }
+        childFragmentManager.setFragmentResultListener(
+            CommentsSheet.HANDLE_LINK_REQUEST_KEY, viewLifecycleOwner
+        ) { _, bundle ->
+            bundle.getString(IntentData.url)?.let {
+                IntentHelper.openLinkFromHref(requireContext(), childFragmentManager, it)
+            }
+        }
+
+        // Arrastrar el título hacia abajo cierra los comentarios (el video crece con el dedo).
+        var startY = 0f
+        binding.shortsCommentsHeader.setOnTouchListener { _, event ->
+            val panel = _binding?.shortsCommentsPanel ?: return@setOnTouchListener false
+            if (!commentsOpen || panel.height == 0) return@setOnTouchListener false
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    commentsAnimator?.cancel()
+                    startY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dy = (event.rawY - startY).coerceAtLeast(0f)
+                    applyCommentsProgress(1f - dy / panel.height)
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (commentsProgress < 0.75f) closeComments() else animateComments(1f)
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    /** Abre los comentarios del Short que se está viendo. */
+    private fun openComments(item: ShortItem, details: Streams?) {
+        val b = _binding ?: return
+        if (commentsOpen) return
+        commentsOpen = true
+        commentsBackCallback.isEnabled = true
+
+        // La lista de este Short (la misma que usa el reproductor, empieza desde arriba).
+        commentsViewModel.reset()
+        commentsViewModel.videoIdLiveData.value = item.videoId
+        b.shortsCommentsCount.text = ""
+        childFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        childFragmentManager.commit {
+            replace<CommentsMainFragment>(
+                R.id.commentFragContainer,
+                args = bundleOf(IntentData.channelAvatar to details?.uploaderAvatar)
+            )
+        }
+
+        // Mientras están abiertos: no se pasa a otro Short y solo se ve el video.
+        b.shortsPager.isUserInputEnabled = false
+        currentHolder()?.let {
+            applyPictureInPictureLayout(it)
+            it.binding.shortPlayIcon.isVisible = false
+        }
+        updateResizeMode()
+
+        // Sin la barra de abajo, como la app; se anima cuando la pantalla ya midió ese espacio.
+        (activity as? MainActivity)?.setBottomBarHiddenForShorts(true)
+        b.root.requestLayout()
+        b.root.doOnNextLayout { if (commentsOpen) animateComments(1f) }
+    }
+
+    /** Cierra los comentarios: el Short vuelve a pantalla completa. */
+    private fun closeComments(animated: Boolean = true) {
+        if (!commentsOpen) return
+        commentsOpen = false
+        commentsBackCallback.isEnabled = false
+        if (animated && _binding != null) {
+            animateComments(0f)
+        } else {
+            commentsAnimator?.cancel()
+            applyCommentsProgress(0f)
+            onCommentsClosed()
+        }
+    }
+
+    private fun onCommentsClosed() {
+        val b = _binding ?: return
+        b.shortsCommentsPanel.isVisible = false
+        b.shortsPager.layoutParams = b.shortsPager.layoutParams.apply {
+            height = ViewGroup.LayoutParams.MATCH_PARENT
+        }
+        b.shortsPager.isUserInputEnabled = true
+        childFragmentManager.popBackStack(null, FragmentManager.POP_BACK_STACK_INCLUSIVE)
+        childFragmentManager.findFragmentById(R.id.commentFragContainer)?.let {
+            childFragmentManager.commit { remove(it) }
+        }
+        currentHolder()?.let { applyPictureInPictureLayout(it) }
+        updateResizeMode()
+        if (!isInPictureInPicture()) {
+            (activity as? MainActivity)?.setBottomBarHiddenForShorts(false)
+        }
+        b.root.post { fitAboveBottomBar() }
+    }
+
+    /** Anima los comentarios hasta [target] (1 = abiertos, 0 = cerrados). */
+    private fun animateComments(target: Float) {
+        val b = _binding ?: return
+        commentsAnimator?.cancel()
+        b.shortsCommentsPanel.isVisible = true
+        val from = commentsProgress
+        commentsAnimator = ValueAnimator.ofFloat(from, target).apply {
+            duration = (COMMENTS_ANIMATION_MS * kotlin.math.abs(target - from)).toLong().coerceAtLeast(1L)
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { applyCommentsProgress(it.animatedValue as Float) }
+            doOnEnd {
+                if (target == 0f && !commentsOpen) onCommentsClosed()
+            }
+            start()
+        }
+    }
+
+    /**
+     * Pone el video y el panel según [progress]: el panel ocupa el 62 % de abajo y el video lo que
+     * queda arriba.
+     */
+    private fun applyCommentsProgress(progress: Float) {
+        val b = _binding ?: return
+        val p = progress.coerceIn(0f, 1f)
+        commentsProgress = p
+        val total = b.root.height - b.root.paddingBottom
+        if (total <= 0) return
+        val panelHeight = (total * COMMENTS_HEIGHT_FRACTION).toInt()
+        val panelParams = b.shortsCommentsPanel.layoutParams
+        if (panelParams.height != panelHeight) {
+            panelParams.height = panelHeight
+            b.shortsCommentsPanel.layoutParams = panelParams
+        }
+        b.shortsCommentsPanel.isVisible = p > 0f
+        b.shortsCommentsPanel.translationY = panelHeight * (1f - p)
+        val pagerParams = b.shortsPager.layoutParams
+        pagerParams.height = if (p <= 0f) ViewGroup.LayoutParams.MATCH_PARENT else (total - panelHeight * p).toInt()
+        b.shortsPager.layoutParams = pagerParams
+    }
+
+    /** Un Short vertical llena la pantalla; uno horizontal, o con los comentarios, se ve completo. */
+    private fun updateResizeMode() {
+        val size = player?.videoSize
+        val vertical = size != null && size.height >= size.width
+        playerView?.resizeMode = if (vertical && !commentsOpen) {
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        } else {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
     }
 
     private fun isInPictureInPicture(): Boolean =
@@ -222,6 +423,7 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         val main = activity as? MainActivity
         // En la ventana solo el video: sin botones, textos ni la barra de abajo.
         main?.setBottomBarHiddenForShorts(isInPictureInPictureMode)
+        if (isInPictureInPictureMode && commentsOpen) closeComments(animated = false)
         currentHolder()?.let { applyPictureInPictureLayout(it) }
         if (!isInPictureInPictureMode) {
             if (lifecycle.currentState == Lifecycle.State.CREATED) {
@@ -237,9 +439,12 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         }
     }
 
-    /** Oculta (en imagen en imagen) o muestra lo que va encima del video de una página. */
+    /**
+     * Oculta (en imagen en imagen o con los comentarios abiertos) o muestra lo que va encima del
+     * video de una página.
+     */
     private fun applyPictureInPictureLayout(holder: ShortsPagerAdapter.PageViewHolder) {
-        val show = !isInPictureInPicture()
+        val show = !isInPictureInPicture() && !commentsOpen
         with(holder.binding) {
             shortActions.isVisible = show
             shortInfo.isVisible = show
@@ -284,6 +489,11 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
     }
 
     override fun onDestroyView() {
+        commentsAnimator?.cancel()
+        if (commentsOpen && !isInPictureInPicture()) {
+            (activity as? MainActivity)?.setBottomBarHiddenForShorts(false)
+        }
+        commentsOpen = false
         activity?.findViewById<View>(R.id.bottomNav)?.removeOnLayoutChangeListener(bottomBarListener)
         view?.removeOnLayoutChangeListener(bottomBarListener)
         playJob?.cancel()
@@ -321,11 +531,7 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
 
                 override fun onVideoSizeChanged(videoSize: VideoSize) {
                     // Un Short vertical llena la pantalla; uno horizontal se ve completo.
-                    playerView?.resizeMode = if (videoSize.height >= videoSize.width) {
-                        AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                    } else {
-                        AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    }
+                    updateResizeMode()
                     updatePictureInPictureParams()
                 }
 
@@ -465,6 +671,10 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
 
         // Tocar el video: pausa o sigue.
         b.root.setOnClickListener {
+            if (commentsOpen) {
+                closeComments()
+                return@setOnClickListener
+            }
             val p = player ?: return@setOnClickListener
             if (holder.bindingAdapterPosition != currentPosition) return@setOnClickListener
             if (p.isPlaying) {
@@ -495,11 +705,9 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         }
 
         // Comentarios: abre el Short en el reproductor, donde están los comentarios y la descripción.
+        // Comentarios como la app de YouTube: el Short se achica arriba y los comentarios abajo.
         b.shortComments.setOnClickListener {
-            player?.pause()
-            updatePictureInPictureParams(force = true)
-            (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(false)
-            NavigationHelper.navigateVideo(context, PlayerData(item.videoId))
+            if (holder.bindingAdapterPosition == currentPosition) openComments(item, details)
         }
 
         b.shortShare.setOnClickListener {
@@ -564,5 +772,9 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
 
     companion object {
         private const val TAG = "ShortsFragment"
+
+        /** Parte de la pantalla que ocupan los comentarios (el resto, el video). */
+        private const val COMMENTS_HEIGHT_FRACTION = 0.62f
+        private const val COMMENTS_ANIMATION_MS = 250L
     }
 }
