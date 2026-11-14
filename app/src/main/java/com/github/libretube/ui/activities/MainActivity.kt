@@ -106,6 +106,15 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
+/** Actualización descargada guardada en el equipo (MainActivity, sección de actualizaciones). */
+private const val UPDATE_PREFS = "pending_app_update"
+private const val UPDATE_KEY_APK_PATH = "apk_path"
+private const val UPDATE_KEY_URL = "apk_url"
+private const val UPDATE_KEY_FROM_VERSION = "from_version_code"
+private const val UPDATE_KEY_COMPLETE = "apk_complete"
+private const val UPDATE_KEY_MANDATORY = "mandatory"
+private const val UPDATE_KEY_WAITING_PERMISSION = "waiting_install_permission"
+
 class MainActivity : AbstractPlayerHostActivity() {
     private lateinit var binding: ActivityMainBinding
 
@@ -290,27 +299,72 @@ class MainActivity : AbstractPlayerHostActivity() {
     override fun onResume() {
         super.onResume()
 
-        if (waitingForInstallPermission && pendingUpdateApk != null) {
-            val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                try {
-                    packageManager.canRequestPackageInstalls()
-                } catch (_: SecurityException) {
-                    false
-                }
-            } else {
-                true
-            }
-
-            if (canInstall) {
-                waitingForInstallPermission = false
-                pendingUpdateApk?.let { apkFile ->
-                    lanzarInstalador(
-                        apkFile,
-                        isUpdateMandatory
-                    )
-                }
-            }
+        // Vuelta de Ajustes con el permiso "instalar apps desconocidas": se abre el instalador con
+        // la actualización ya descargada. El estado queda guardado, porque al cambiar ese permiso
+        // Android suele reiniciar la app (antes se perdía y se volvía a descargar en un ciclo).
+        val prefs = updatePrefs()
+        val waiting = waitingForInstallPermission || prefs.getBoolean(UPDATE_KEY_WAITING_PERMISSION, false)
+        val apkFile = pendingUpdateApk ?: actualizacionDescargada(null)
+        if (waiting && apkFile != null && puedeInstalarPaquetes()) {
+            waitingForInstallPermission = false
+            prefs.edit().putBoolean(UPDATE_KEY_WAITING_PERMISSION, false).apply()
+            lanzarInstalador(
+                apkFile,
+                isUpdateMandatory || prefs.getBoolean(UPDATE_KEY_MANDATORY, false)
+            )
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Actualización descargada, guardada en el equipo (sobrevive a que Android reinicie la app)
+    // ---------------------------------------------------------------------------------------
+
+    private fun updatePrefs() = getSharedPreferences(UPDATE_PREFS, Context.MODE_PRIVATE)
+
+    private fun puedeInstalarPaquetes(): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                packageManager.canRequestPackageInstalls()
+            } catch (_: SecurityException) {
+                false
+            }
+        } else {
+            true
+        }
+
+    /**
+     * La actualización ya descargada completa (de [downloadUrl], o cualquiera si es null), si
+     * sigue en el equipo. Si la app ya se actualizó, se borra.
+     */
+    private fun actualizacionDescargada(downloadUrl: String?): File? {
+        val prefs = updatePrefs()
+        val path = prefs.getString(UPDATE_KEY_APK_PATH, null) ?: return null
+        val apk = File(path)
+        val savedForVersion = prefs.getInt(UPDATE_KEY_FROM_VERSION, -1)
+        if (savedForVersion != BuildConfig.VERSION_CODE) {
+            // La versión cambió: la actualización ya se instaló.
+            olvidarActualizacionDescargada()
+            return null
+        }
+        val complete = prefs.getBoolean(UPDATE_KEY_COMPLETE, false)
+        val sameUpdate = downloadUrl == null || prefs.getString(UPDATE_KEY_URL, null) == downloadUrl
+        return apk.takeIf { complete && sameUpdate && it.exists() && it.length() > 0L }
+    }
+
+    private fun guardarActualizacionDescargada(apk: File, downloadUrl: String, isMandatory: Boolean) {
+        updatePrefs().edit()
+            .putString(UPDATE_KEY_APK_PATH, apk.absolutePath)
+            .putString(UPDATE_KEY_URL, downloadUrl)
+            .putInt(UPDATE_KEY_FROM_VERSION, BuildConfig.VERSION_CODE)
+            .putBoolean(UPDATE_KEY_COMPLETE, true)
+            .putBoolean(UPDATE_KEY_MANDATORY, isMandatory)
+            .apply()
+    }
+
+    private fun olvidarActualizacionDescargada() {
+        val prefs = updatePrefs()
+        prefs.getString(UPDATE_KEY_APK_PATH, null)?.let { runCatching { File(it).delete() } }
+        prefs.edit().clear().apply()
     }
 
     private fun verificarDiasRestantes() {
@@ -764,7 +818,16 @@ class MainActivity : AbstractPlayerHostActivity() {
         isMandatory: Boolean
     ) {
         if (updateDownloadInProgress) return
+
+        actualizacionDescargada(downloadUrl)?.let { apkFile ->
+            pendingUpdateApk = apkFile
+            instalarActualizacion(apkFile, isMandatory)
+            return
+        }
+
         updateDownloadInProgress = true
+        // Una descarga nueva: la anterior (incompleta o de otra versión) ya no sirve.
+        updatePrefs().edit().putBoolean(UPDATE_KEY_COMPLETE, false).apply()
 
         val progressDialog = mostrarDialogoDescarga()
 
@@ -855,6 +918,7 @@ class MainActivity : AbstractPlayerHostActivity() {
                     updateDownloadInProgress = false
 
                     pendingUpdateApk = apkFile
+                    guardarActualizacionDescargada(apkFile, downloadUrl, isMandatory)
                     instalarActualizacion(apkFile, isMandatory)
                 }
             } catch (e: Exception) {
@@ -1036,6 +1100,10 @@ class MainActivity : AbstractPlayerHostActivity() {
                 if (!puedeInstalar) {
                     pendingUpdateApk = apkFile
                     waitingForInstallPermission = true
+                    updatePrefs().edit()
+                        .putBoolean(UPDATE_KEY_WAITING_PERMISSION, true)
+                        .putBoolean(UPDATE_KEY_MANDATORY, isMandatory)
+                        .apply()
 
                     val settingsIntent = Intent(
                         Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,

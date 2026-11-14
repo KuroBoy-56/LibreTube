@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Carpeta de las actualizaciones descargadas (cacheDir/updates): el instalador del sistema
+     recibe el APK por el FileProvider "<paquete>.FileProvider" (MainActivity.lanzarInstalador). -->
+<paths>
+    <cache-path
+        name="updates"
+        path="updates/" />
+</paths>
