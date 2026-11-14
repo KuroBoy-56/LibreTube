@@ -10,8 +10,9 @@ import com.github.libretube.databinding.ItemShortsShelfBinding
 import com.github.libretube.helpers.ImageHelper
 
 /**
- * La fila de Shorts del inicio (una sola fila del RecyclerView del inicio): el logo, "Shorts" y
+ * Una fila de Shorts del inicio (un elemento del RecyclerView del inicio): el logo, "Shorts" y
  * cuatro Shorts verticales en dos filas de dos, como la app de YouTube. Sin Shorts no ocupa nada.
+ * El inicio pone una cada dos videos.
  */
 class ShortsShelfAdapter(
     private val onShortClick: (items: List<ShortItem>, index: Int) -> Unit,
@@ -19,7 +20,6 @@ class ShortsShelfAdapter(
 ) : RecyclerView.Adapter<ShortsShelfAdapter.ShelfViewHolder>() {
 
     private var items: List<ShortItem> = emptyList()
-    private var visible = true
 
     fun submit(newItems: List<ShortItem>) {
         val wasShown = itemCount > 0
@@ -32,17 +32,11 @@ class ShortsShelfAdapter(
         }
     }
 
-    /** Oculta la fila (por ejemplo, mientras el inicio carga o sin videos). */
-    fun setVisible(show: Boolean) {
-        if (show == visible) return
-        val wasShown = itemCount > 0
-        visible = show
-        val isShown = itemCount > 0
-        if (wasShown && !isShown) notifyItemRemoved(0)
-        if (!wasShown && isShown) notifyItemInserted(0)
-    }
+    override fun getItemCount() = if (items.isNotEmpty()) 1 else 0
 
-    override fun getItemCount() = if (visible && items.isNotEmpty()) 1 else 0
+    // Tipo propio: el inicio comparte el reciclado de vistas entre sus partes (ConcatAdapter sin
+    // tipos aislados) y no debe chocar con los tipos de VideoCardsAdapter.
+    override fun getItemViewType(position: Int) = VIEW_TYPE
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ShelfViewHolder {
         val binding = ItemShortsShelfBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -58,6 +52,10 @@ class ShortsShelfAdapter(
     }
 
     class ShelfViewHolder(val binding: ItemShortsShelfBinding) : RecyclerView.ViewHolder(binding.root)
+
+    companion object {
+        const val VIEW_TYPE = 7301
+    }
 
     private class ShortCardsAdapter(
         private val items: List<ShortItem>,

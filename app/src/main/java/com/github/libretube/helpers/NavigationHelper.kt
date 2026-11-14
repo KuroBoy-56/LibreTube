@@ -55,6 +55,9 @@ object NavigationHelper {
         forceVideo: Boolean = false,
         audioOnlyPlayerRequested: Boolean = false,
     ) {
+        // Si el video se abre desde Shorts, el reproductor (oculto allí) vuelve a verse.
+        ContextHelper.tryUnwrapActivity<MainActivity>(context)?.setMiniPlayerHiddenForShorts(false)
+
         // attempt to attach to the current media session first by using the corresponding
         // video/audio player instance
         val activity = ContextHelper.unwrapActivity<AbstractPlayerHostActivity>(context)
@@ -137,6 +140,7 @@ object NavigationHelper {
         minimizeByDefault: Boolean = false
     ) {
         val activity = ContextHelper.unwrapActivity<BaseActivity>(context)
+        (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(false)
         activity.supportFragmentManager.commitNow {
             val args = bundleOf(
                 IntentData.minimizeByDefault to minimizeByDefault,
@@ -160,6 +164,7 @@ object NavigationHelper {
             IntentData.playerData to playerData,
             IntentData.alreadyStarted to alreadyStarted,
         )
+        (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(false)
         activity.supportFragmentManager.commitNow {
             replace<PlayerFragment>(R.id.container, args = bundle)
         }

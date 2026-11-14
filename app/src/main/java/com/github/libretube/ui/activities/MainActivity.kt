@@ -1106,10 +1106,12 @@ class MainActivity : AbstractPlayerHostActivity() {
             .show()
     }
 
-    /** El botón de buscar de la sección Shorts: muestra la barra de arriba y abre la búsqueda. */
-    fun openSearchFromShorts() {
-        binding.appBarLayout.isVisible = true
-        if (this::searchItem.isInitialized) searchItem.expandActionView()
+    /**
+     * Oculta el mini reproductor (el video principal, pausado) mientras se ven Shorts, para que no
+     * tape el Short; al salir de Shorts vuelve a verse.
+     */
+    fun setMiniPlayerHiddenForShorts(hidden: Boolean) {
+        binding.container.isVisible = !hidden
     }
 
     /** Abre la sección Shorts desde la fila de Shorts del inicio. */

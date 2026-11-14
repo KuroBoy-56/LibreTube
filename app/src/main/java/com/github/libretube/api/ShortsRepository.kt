@@ -42,6 +42,9 @@ object ShortsRepository {
     private const val CLIENT_NAME = "WEB"
     private const val CLIENT_ID = "1"
     private const val CLIENT_VERSION = "2.20260907.06.00"
+
+    /** Filtro "Tipo: Shorts" de la búsqueda de YouTube. */
+    private const val SHORTS_SEARCH_FILTER = "EgIQCQ%3D%3D"
     private const val USER_AGENT =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 
@@ -96,20 +99,31 @@ object ShortsRepository {
     }
 
     /**
-     * Al menos [count] Shorts (la primera página y las que hagan falta), para la fila del inicio.
+     * Shorts de un tema: la búsqueda de YouTube con el filtro "Shorts" (unos 30 a 40 por página,
+     * con título). Con [continuation] da la página siguiente.
      */
-    suspend fun loadAtLeast(count: Int, maxPages: Int = 3): Page {
-        val first = firstPage()
-        val items = first.items.toMutableList()
-        var token = first.nextToken
-        var pages = 0
-        while (items.size < count && token != null && pages < maxPages) {
-            val page = nextPage(token)
-            page.items.forEach { item -> if (items.none { it.videoId == item.videoId }) items.add(item) }
-            token = page.nextToken
-            pages++
+    suspend fun search(query: String, continuation: String? = null): Page = withContext(Dispatchers.IO) {
+        val payload = if (continuation == null) {
+            JSONObject().put("query", query).put("params", SHORTS_SEARCH_FILTER)
+        } else {
+            JSONObject().put("continuation", continuation)
         }
-        return Page(items, token)
+        val json = post("search", payload)
+        val items = mutableListOf<ShortItem>()
+        var next: String? = null
+        walk(json) { key, node ->
+            when (key) {
+                "shortsLockupViewModel" -> lockupToItem(node)?.let(items::add)
+                "reelItemRenderer" -> reelRendererToItem(node)?.let(items::add)
+                "continuationItemRenderer" -> if (next == null) {
+                    next = node.optJSONObject("continuationEndpoint")
+                        ?.optJSONObject("continuationCommand")
+                        ?.optString("token")
+                        ?.ifBlank { null }
+                }
+            }
+        }
+        Page(items.distinctBy { it.videoId }, next)
     }
 
     /**
@@ -133,6 +147,44 @@ object ShortsRepository {
                     }
                 }
             }.awaitAll()
+        }
+    }
+
+    /** Un Short de la búsqueda (shortsLockupViewModel): id, título y miniatura vertical. */
+    private fun lockupToItem(node: JSONObject): ShortItem? {
+        if (isAd(node)) return null
+        val reel = node.optJSONObject("onTap")
+            ?.optJSONObject("innertubeCommand")
+            ?.optJSONObject("reelWatchEndpoint") ?: return null
+        val item = reelToItem(reel) ?: return null
+        item.title = node.optJSONObject("overlayMetadata")
+            ?.optJSONObject("primaryText")
+            ?.optString("content")
+            ?.ifBlank { null }
+        return item
+    }
+
+    /** Un Short de la búsqueda en el formato anterior (reelItemRenderer). */
+    private fun reelRendererToItem(node: JSONObject): ShortItem? {
+        if (isAd(node)) return null
+        val videoId = node.optString("videoId").ifBlank { return null }
+        val thumbnails = node.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+        val url = thumbnails?.let { it.optJSONObject(it.length() - 1) }?.optString("url")
+            ?.takeIf { it.isNotBlank() }
+            ?: "https://i.ytimg.com/vi/$videoId/oardefault.jpg"
+        val title = node.optJSONObject("headline")?.optString("simpleText")?.ifBlank { null }
+        return ShortItem(videoId, url, title)
+    }
+
+    /** Recorre toda la respuesta y llama a [visit] con cada objeto y su nombre. */
+    private fun walk(node: Any?, visit: (key: String, node: JSONObject) -> Unit) {
+        when (node) {
+            is JSONObject -> node.keys().forEach { key ->
+                val child = node.opt(key)
+                if (child is JSONObject) visit(key, child)
+                walk(child, visit)
+            }
+            is JSONArray -> for (i in 0 until node.length()) walk(node.opt(i), visit)
         }
     }
 

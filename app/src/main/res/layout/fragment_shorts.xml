@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Sección Shorts: videos verticales a pantalla completa que se pasan deslizando hacia arriba,
-     como la app de YouTube. -->
+     como la app de YouTube. Arriba no hay nada (ni la barra de estado); abajo el Short termina
+     donde empieza la barra de Inicio/Shorts/Suscripciones/Tú (ShortsFragment.fitAboveBottomBar). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -12,20 +13,6 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical" />
-
-    <!-- Arriba a la derecha: buscar, como en la app -->
-    <ImageView
-        android:id="@+id/shorts_search"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="8dp"
-        android:layout_marginEnd="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/search_hint"
-        android:padding="12dp"
-        android:src="@drawable/ic_search"
-        app:tint="#FFFFFFFF" />
 
     <ProgressBar
         android:id="@+id/shorts_loading"

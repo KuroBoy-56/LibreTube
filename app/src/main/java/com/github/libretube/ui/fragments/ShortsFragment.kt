@@ -10,8 +10,9 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -120,44 +121,72 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
             viewModel.retry()
         }
 
-        // Sin la barra de arriba, el Short llega hasta la barra de estado: el botón de buscar
-        // baja lo que mide esa barra (la hora y la batería no lo tapan).
-        val baseMargin = (8 * resources.displayMetrics.density).toInt()
-        fun applyTopInset(top: Int) {
-            val params = binding.shortsSearch.layoutParams as ViewGroup.MarginLayoutParams
-            params.topMargin = top + baseMargin
-            binding.shortsSearch.layoutParams = params
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(binding.shortsSearch) { _, insets ->
-            applyTopInset(insets.getInsets(WindowInsetsCompat.Type.statusBars()).top)
-            insets
-        }
-        view.post {
-            ViewCompat.getRootWindowInsets(view)?.getInsets(WindowInsetsCompat.Type.statusBars())?.top
-                ?.let { if (_binding != null) applyTopInset(it) }
-        }
-
-        binding.shortsSearch.setOnClickListener {
-            (activity as? MainActivity)?.openSearchFromShorts()
-        }
+        // Abajo, el Short termina donde empieza la barra de Inicio/Shorts/...: el canal, Suscribirse
+        // y los botones nunca quedan detrás de ella.
+        activity?.findViewById<View>(R.id.bottomNav)?.addOnLayoutChangeListener(bottomBarListener)
+        view.addOnLayoutChangeListener(bottomBarListener)
+        view.post { fitAboveBottomBar() }
 
         viewModel.ensureFeed()
     }
 
     override fun onResume() {
         super.onResume()
-        // Como la app de YouTube: el video principal se pausa mientras se ven Shorts.
+        // Como la app de YouTube: el video principal se pausa mientras se ven Shorts, y su mini
+        // reproductor no tapa el Short.
         (activity as? MainActivity)?.runOnPlayerFragment { pauseForShorts(); true }
         (activity as? MainActivity)?.runOnAudioPlayerFragment { pauseForShorts(); true }
+        (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(true)
+        // Pantalla completa: arriba no queda nada (la barra de estado se ve deslizando desde arriba).
+        setStatusBarHidden(true)
+        view?.post { fitAboveBottomBar() }
         if (currentPosition != RecyclerView.NO_POSITION) player?.play()
     }
 
     override fun onPause() {
         super.onPause()
         player?.pause()
+        setStatusBarHidden(false)
+        (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(false)
+    }
+
+    private val bottomBarListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+        fitAboveBottomBar()
+    }
+
+    /**
+     * Deja abajo el espacio que ocupa la barra de Inicio/Shorts/... sobre la pantalla de Shorts
+     * (según dónde está cada una en la pantalla), así nada del Short queda detrás de ella.
+     */
+    private fun fitAboveBottomBar() {
+        val root = _binding?.root ?: return
+        val bottomBar = activity?.findViewById<View>(R.id.bottomNav)
+        var overlap = 0
+        if (bottomBar != null && bottomBar.isShown && bottomBar.height > 0) {
+            val rootLocation = IntArray(2)
+            val barLocation = IntArray(2)
+            root.getLocationOnScreen(rootLocation)
+            bottomBar.getLocationOnScreen(barLocation)
+            val barTop = barLocation[1] + bottomBar.translationY.toInt().coerceAtMost(0)
+            overlap = (rootLocation[1] + root.height - barTop).coerceIn(0, root.height / 3)
+        }
+        if (root.paddingBottom != overlap) root.setPadding(0, 0, 0, overlap)
+    }
+
+    private fun setStatusBarHidden(hidden: Boolean) {
+        val window = activity?.window ?: return
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        if (hidden) {
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.statusBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.statusBars())
+        }
     }
 
     override fun onDestroyView() {
+        activity?.findViewById<View>(R.id.bottomNav)?.removeOnLayoutChangeListener(bottomBarListener)
+        view?.removeOnLayoutChangeListener(bottomBarListener)
         playJob?.cancel()
         progressJob?.cancel()
         streamsRequests.values.forEach { it.cancel() }
@@ -366,6 +395,7 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         // Comentarios: abre el Short en el reproductor, donde están los comentarios y la descripción.
         b.shortComments.setOnClickListener {
             player?.pause()
+            (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(false)
             NavigationHelper.navigateVideo(context, PlayerData(item.videoId))
         }
 
