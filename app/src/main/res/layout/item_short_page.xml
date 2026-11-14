@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Un Short a pantalla completa: video, botones a la derecha (me gusta, no me gusta, comentarios,
+     compartir y el canal) y abajo el canal con Suscribirse y el título, como la app de YouTube. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000">
+
+    <ImageView
+        android:id="@+id/short_thumbnail"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop" />
+
+    <!-- Aquí se coloca el PlayerView del Short que se está viendo -->
+    <FrameLayout
+        android:id="@+id/short_player_slot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/shorts_bottom_gradient" />
+
+    <ImageView
+        android:id="@+id/short_play_icon"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center"
+        android:background="@drawable/shorts_action_bg"
+        android:importantForAccessibility="no"
+        android:padding="18dp"
+        android:src="@drawable/ic_play"
+        android:visibility="gone"
+        app:tint="#FFFFFFFF" />
+
+    <ProgressBar
+        android:id="@+id/short_buffering"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="center"
+        android:indeterminateTint="#FFFFFFFF"
+        android:visibility="gone" />
+
+    <!-- Botones a la derecha -->
+    <LinearLayout
+        android:id="@+id/short_actions"
+        android:layout_width="64dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="4dp"
+        android:layout_marginBottom="20dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/short_like"
+            style="@style/ShortsAction">
+
+            <ImageView
+                style="@style/ShortsActionIcon"
+                android:src="@drawable/ic_like" />
+
+            <TextView
+                android:id="@+id/short_like_count"
+                style="@style/ShortsActionText"
+                tools:text="1,2 M" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/short_dislike"
+            style="@style/ShortsAction">
+
+            <ImageView
+                style="@style/ShortsActionIcon"
+                android:src="@drawable/ic_dislike" />
+
+            <TextView
+                style="@style/ShortsActionText"
+                android:text="@string/shorts_dislike" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/short_comments"
+            style="@style/ShortsAction">
+
+            <ImageView
+                style="@style/ShortsActionIcon"
+                android:src="@drawable/ic_comment" />
+
+            <TextView
+                style="@style/ShortsActionText"
+                android:text="@string/comments" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/short_share"
+            style="@style/ShortsAction">
+
+            <ImageView
+                style="@style/ShortsActionIcon"
+                android:src="@drawable/ic_share" />
+
+            <TextView
+                style="@style/ShortsActionText"
+                android:text="@string/share" />
+        </LinearLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/short_channel_square"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="#33FFFFFF"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#FFFFFFFF"
+            app:strokeWidth="2dp">
+
+            <ImageView
+                android:id="@+id/short_channel_square_image"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:importantForAccessibility="no"
+                android:scaleType="centerCrop" />
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+
+    <!-- Canal, Suscribirse y título -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="76dp"
+        android:layout_marginBottom="22dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/short_channel_row"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                app:cardBackgroundColor="#33FFFFFF"
+                app:cardCornerRadius="17dp"
+                app:cardElevation="0dp">
+
+                <ImageView
+                    android:id="@+id/short_channel_avatar"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no"
+                    android:scaleType="centerCrop" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:id="@+id/short_channel_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:ellipsize="end"
+                android:maxWidth="170dp"
+                android:maxLines="1"
+                android:shadowColor="#99000000"
+                android:shadowRadius="4"
+                android:textColor="#FFFFFFFF"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                tools:text="\@canal" />
+
+            <TextView
+                android:id="@+id/short_subscribe"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="10dp"
+                android:background="@drawable/shorts_subscribe_bg"
+                android:gravity="center"
+                android:paddingHorizontal="14dp"
+                android:text="@string/subscribe"
+                android:textColor="#FF0F0F0F"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/short_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:shadowColor="#99000000"
+            android:shadowRadius="4"
+            android:textColor="#FFFFFFFF"
+            android:textSize="15sp"
+            tools:text="Título del Short" />
+    </LinearLayout>
+
+    <!-- Barra de progreso fina abajo, como la app -->
+    <ProgressBar
+        android:id="@+id/short_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_gravity="bottom"
+        android:max="1000"
+        android:progressBackgroundTint="#4DFFFFFF"
+        android:progressTint="#FFFF0033" />
+</FrameLayout>

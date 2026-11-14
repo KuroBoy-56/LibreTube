@@ -866,6 +866,11 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
         WindowHelper.toggleFullscreen(fullscreenDialog.window!!, open)
     }
 
+    /** Pausa el video principal mientras se ven Shorts (como la app de YouTube). */
+    fun pauseForShorts() {
+        if (this::playerController.isInitialized) playerController.pause()
+    }
+
     override fun onPause() {
         val isInteractive = requireContext().getSystemService<PowerManager>()!!.isInteractive
 

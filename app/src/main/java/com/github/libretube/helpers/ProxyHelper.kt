@@ -1,7 +1,5 @@
 package com.github.libretube.helpers
 
-import com.github.libretube.api.PipedMediaServiceRepository
-import com.github.libretube.api.RetrofitInstance
 import com.github.libretube.constants.PreferenceKeys
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,44 +7,22 @@ import kotlinx.coroutines.launch
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 object ProxyHelper {
+    /**
+     * Como en LibreTube original (sin proxy de Piped): se borra el proxy guardado por versiones
+     * anteriores, que mandaba videos e imágenes por un servidor Piped (si ese servidor estaba
+     * caído, nada cargaba: "error de conexión").
+     */
     fun fetchProxyUrl() {
         CoroutineScope(Dispatchers.IO).launch {
-            runCatching {
-                RetrofitInstance.externalApi.getInstanceConfig(PipedMediaServiceRepository.apiUrl)
-                    .imageProxyUrl?.let {
-                        PreferenceHelper.putString(PreferenceKeys.IMAGE_PROXY_URL, it)
-                    }
-            }
+            runCatching { PreferenceHelper.putString(PreferenceKeys.IMAGE_PROXY_URL, "") }
         }
     }
 
     /**
-     * Decide whether the proxy should be used or not for a given stream URL based on user preferences
+     * Las URLs van directo a YouTube; una URL que ya venía por un proxy de Piped se desenvuelve.
      */
     fun rewriteUrlUsingProxyPreference(url: String): String {
-        return proxyRewriteUrl(url) ?: url
-    }
-
-    /**
-     * Rewrite the URL to use the stored image proxy url of the selected instance.
-     * Can handle both Piped links and normal YouTube links.
-     */
-    private fun proxyRewriteUrl(url: String?): String? {
-        if (url == null) return null
-
-        val proxyUrl = PreferenceHelper.getString(PreferenceKeys.IMAGE_PROXY_URL, "")
-            .toHttpUrlOrNull()
-
-        // parsedUrl should now be a plain YouTube URL without using any proxy
-        val parsedUrl = unwrapUrl(url).toHttpUrlOrNull()
-        if (proxyUrl == null || parsedUrl == null) return null
-
-        return parsedUrl.newBuilder()
-            .host(proxyUrl.host)
-            .port(proxyUrl.port)
-            .setQueryParameter("host", parsedUrl.host)
-            .build()
-            .toString()
+        return unwrapUrl(url)
     }
 
     /**

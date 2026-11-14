@@ -403,4 +403,6 @@
     <color name="violet_theme_dark_inverseSurface">#EFDBFF</color>
     <color name="violet_theme_dark_inversePrimary">#714AAA</color>
 
+    <!-- Rojo de YouTube para la sección Shorts -->
+    <color name="shorts_red">#FFFF0033</color>
 </resources>

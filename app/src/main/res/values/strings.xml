@@ -587,4 +587,12 @@
     <string name="comment_pinned">Anclado</string>
     <string name="comment_verified">Verificado</string>
     <string name="resume_all">Reanudar todo</string>
+    <!-- Shorts (sección vertical y fila del inicio) -->
+    <string name="shorts_tab" translatable="false">Shorts</string>
+    <string name="you_tab">You</string>
+    <string name="shorts_loading_error">Could not load Shorts</string>
+    <string name="shorts_dislike">Dislike</string>
+    <string name="shorts_subscribed">Subscribed</string>
+    <string name="shorts_more">More</string>
+    <string name="shorts_like">Like</string>
 </resources>

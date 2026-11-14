@@ -42,6 +42,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.allViews
 import androidx.core.view.children
 import androidx.core.view.isNotEmpty
+import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
@@ -1105,6 +1106,17 @@ class MainActivity : AbstractPlayerHostActivity() {
             .show()
     }
 
+    /** El botón de buscar de la sección Shorts: muestra la barra de arriba y abre la búsqueda. */
+    fun openSearchFromShorts() {
+        binding.appBarLayout.isVisible = true
+        if (this::searchItem.isInitialized) searchItem.expandActionView()
+    }
+
+    /** Abre la sección Shorts desde la fila de Shorts del inicio. */
+    fun openShortsTab() {
+        binding.bottomNav.selectedItemId = R.id.shortsFragment
+    }
+
     private fun navigateToBottomSelectedItem(item: MenuItem): Boolean {
         if (item.itemId == R.id.subscriptionsFragment) {
             binding.bottomNav.removeBadge(R.id.subscriptionsFragment)
@@ -1212,6 +1224,11 @@ class MainActivity : AbstractPlayerHostActivity() {
         checkUnreadAnnouncements()
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
+            // Shorts a pantalla completa, sin la barra de arriba (como la app de YouTube).
+            val inShorts = destination.id == R.id.shortsFragment
+            binding.appBarLayout.isVisible = !inShorts
+            if (!inShorts) binding.appBarLayout.setExpanded(true, false)
+
             // --- REGLA DINÁMICA DE AUTO-OCULTADO ---
             val params = binding.toolbar.layoutParams as com.google.android.material.appbar.AppBarLayout.LayoutParams
             if (destination.id == R.id.homeFragment || destination.id == R.id.trendsFragment) {

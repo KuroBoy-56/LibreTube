@@ -32,8 +32,10 @@ object NavBarHelper {
             // CIRUGÍA MAESTRA: Forzamos la visibilidad de los botones en el código fuente
             when (item.itemId) {
                 R.id.downloadsFragment -> item.isVisible = false // Oculta Descargas para siempre
-                R.id.trendsFragment -> item.isVisible = true     // Activa Tendencias para siempre
-                else -> item.isVisible = true                    // Mantiene Inicio, Suscripciones y Biblioteca
+                // Como la app de YouTube: Inicio, Shorts, Suscripciones y Tú. Las tendencias
+                // siguen en las categorías de arriba del Inicio.
+                R.id.trendsFragment -> item.isVisible = false
+                else -> item.isVisible = true                    // Inicio, Shorts, Suscripciones y Tú
             }
             navBarItems.add(item)
         }
@@ -65,7 +67,8 @@ object NavBarHelper {
 
     fun applyNavBarStyle(bottomNav: BottomNavigationView): Int {
         val labelVisibilityMode = when (
-            PreferenceHelper.getString(PreferenceKeys.LABEL_VISIBILITY, "selected")
+            // Como la app de YouTube, los nombres se ven siempre.
+            PreferenceHelper.getString(PreferenceKeys.LABEL_VISIBILITY, "always")
         ) {
             "always" -> NavigationBarView.LABEL_VISIBILITY_LABELED
             "selected" -> NavigationBarView.LABEL_VISIBILITY_SELECTED
@@ -73,6 +76,21 @@ object NavBarHelper {
             else -> NavigationBarView.LABEL_VISIBILITY_AUTO
         }
         bottomNav.labelVisibilityMode = labelVisibilityMode
+        // Como la app de YouTube: sin la "píldora" de color detrás del ícono elegido; el elegido
+        // se ve en el color del texto y los demás un poco más tenues.
+        bottomNav.isItemActiveIndicatorEnabled = false
+        val typed = bottomNav.context.obtainStyledAttributes(
+            intArrayOf(android.R.attr.textColorPrimary, android.R.attr.textColorSecondary)
+        )
+        val primary = typed.getColor(0, android.graphics.Color.WHITE)
+        val secondary = typed.getColor(1, android.graphics.Color.GRAY)
+        typed.recycle()
+        val tint = android.content.res.ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+            intArrayOf(primary, secondary)
+        )
+        bottomNav.itemIconTintList = tint
+        bottomNav.itemTextColor = tint
 
         val navBarItems = getNavBarItems(bottomNav.context)
 
@@ -103,11 +121,13 @@ object NavBarHelper {
         val pref = PreferenceHelper.getInt(PreferenceKeys.START_FRAGMENT, Int.MAX_VALUE)
         val visibleItems = getNavBarItems(context).filter { it.isVisible }
 
-        return if (pref == Int.MAX_VALUE || pref >= visibleItems.size) {
+        val id = if (pref == Int.MAX_VALUE || pref >= visibleItems.size) {
             visibleItems.firstOrNull()?.itemId ?: R.id.homeFragment
         } else {
             visibleItems[pref].itemId
         }
+        // La app nunca abre directo en Shorts (empezaría a sonar un video al abrirla).
+        return if (id == R.id.shortsFragment) R.id.homeFragment else id
     }
 
     fun setStartFragment(context: Context, itemId: Int) {

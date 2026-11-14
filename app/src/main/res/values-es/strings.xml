@@ -571,4 +571,11 @@
     <string name="ungrouped_channels_with_count">Sin grupo (%1$d)</string>
     <string name="long_press_fast_forward">Adelanta al mantener</string>
     <string name="long_press_fast_forward_summary">Reproduce el vídeo a doble velocidad mientras pulsas y mantienes la pantalla.</string>
+    <!-- Shorts (sección vertical y fila del inicio) -->
+    <string name="you_tab">Tú</string>
+    <string name="shorts_loading_error">No se pudieron cargar los Shorts</string>
+    <string name="shorts_dislike">No me gusta</string>
+    <string name="shorts_subscribed">Suscrito</string>
+    <string name="shorts_more">Más</string>
+    <string name="shorts_like">Me gusta</string>
 </resources>

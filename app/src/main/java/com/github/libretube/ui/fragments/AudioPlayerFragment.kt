@@ -454,6 +454,11 @@ class AudioPlayerFragment : Fragment(R.layout.fragment_audio_player), AudioPlaye
         initializeSeekBar()
     }
 
+    /** Pausa el audio mientras se ven Shorts (como la app de YouTube). */
+    fun pauseForShorts() {
+        playerController?.pause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         handler.removeCallbacksAndMessages(null)

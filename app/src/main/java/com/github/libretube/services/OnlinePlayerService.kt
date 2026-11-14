@@ -310,15 +310,22 @@ open class OnlinePlayerService : AbstractPlayerService() {
                 }
 
                 // 3. EN VIVO: Fallback a DASH si HLS no existe
-                streams.isLive && streams.dash != null -> {
+                // (el extractor devuelve "" en vez de null cuando no hay manifiesto DASH)
+                streams.isLive && !streams.dash.isNullOrBlank() -> {
                     val dashUri = ProxyHelper.rewriteUrlUsingProxyPreference(streams.dash).toUri()
                     val mediaItem = createMediaItem(dashUri, MimeTypes.APPLICATION_MPD, streams)
                     exoPlayer?.setMediaItem(mediaItem)
                 }
 
                 // 4. VOD: DASH (Generado internamente)
-                !streams.isLive && streams.videoStreams.isNotEmpty() -> {
-                    val dashUri = PlayerHelper.createDashSource(streams, this@OnlinePlayerService)
+                // Solo las pistas que no son SABR ("sabr://..." no se pueden reproducir por DASH).
+                !streams.isLive && streams.videoStreams.any { it.url?.startsWith("sabr://") != true } -> {
+                    val dashUri = PlayerHelper.createDashSource(
+                        streams.copy(videoStreams = streams.videoStreams.filter {
+                            it.url?.startsWith("sabr://") != true
+                        }),
+                        this@OnlinePlayerService
+                    )
                     val mediaItem = createMediaItem(dashUri, MimeTypes.APPLICATION_MPD, streams)
                     exoPlayer?.setMediaItem(mediaItem)
                 }

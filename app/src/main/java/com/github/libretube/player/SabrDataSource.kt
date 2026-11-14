@@ -12,7 +12,6 @@ import com.github.libretube.player.parser.CompositeBuffer
 import com.github.libretube.player.parser.PlaybackRequest
 import com.github.libretube.player.parser.SabrClient
 import java.io.IOException
-import misc.Common.FormatId
 
 @UnstableApi
 class SabrDataSource(
@@ -36,7 +35,7 @@ class SabrDataSource(
         } catch (e: Exception) {
             Log.e(
                 SabrClient::class.java.name,
-                "open: failed to get segment ${playbackRequest!!.segment} for ${playbackRequest!!.format.itag}: $e"
+                "open: failed to get segment ${playbackRequest!!.segment} for ${playbackRequest.format.itag}: $e"
             )
             throw IOException()
         }

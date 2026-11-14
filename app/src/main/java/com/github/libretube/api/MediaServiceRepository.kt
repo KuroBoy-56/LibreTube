@@ -11,7 +11,6 @@ import com.github.libretube.api.obj.SearchResult
 import com.github.libretube.api.obj.SegmentData
 import com.github.libretube.api.obj.StreamItem
 import com.github.libretube.api.obj.Streams
-import com.github.libretube.helpers.PlayerHelper
 
 interface MediaServiceRepository {
     fun getTrendingCategories(): List<TrendingCategory>
@@ -44,11 +43,9 @@ interface MediaServiceRepository {
 
     companion object {
         val instance: MediaServiceRepository
-            get() = when {
-                PlayerHelper.fullLocalMode -> NewPipeMediaServiceRepository()
-                PlayerHelper.localStreamExtraction -> LocalStreamsExtractionPipedMediaServiceRepository()
-                else -> PipedMediaServiceRepository()
-            }
+            // Como LibreTube original: siempre la extracción local con NewPipeExtractor. Las
+            // instancias de Piped caídas daban "error de conexión" a quien las tenía elegidas.
+            get() = NewPipeMediaServiceRepository()
     }
 }
 

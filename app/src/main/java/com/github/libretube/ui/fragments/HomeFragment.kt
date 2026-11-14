@@ -5,13 +5,17 @@ import android.view.View
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.github.libretube.R
 import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.TrendingCategory
 import com.github.libretube.databinding.FragmentHomeBinding
+import com.github.libretube.ui.activities.MainActivity
+import com.github.libretube.ui.adapters.ShortsShelfAdapter
 import com.github.libretube.ui.adapters.VideoCardsAdapter
 import com.github.libretube.ui.models.HomeViewModel
+import com.github.libretube.ui.models.ShortsViewModel
 import com.github.libretube.ui.models.SubscriptionsViewModel
 import com.google.android.material.tabs.TabLayout
 
@@ -22,7 +26,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private val homeViewModel: HomeViewModel by activityViewModels()
     private val subscriptionsViewModel: SubscriptionsViewModel by activityViewModels()
 
-    private val mainAdapter = VideoCardsAdapter()
+    private val shortsViewModel: ShortsViewModel by activityViewModels()
+
+    // Como la app de YouTube: los primeros videos, la fila de Shorts (2 x 2) y el resto.
+    private val headAdapter = VideoCardsAdapter()
+    private val tailAdapter = VideoCardsAdapter()
+    private val shortsShelf = ShortsShelfAdapter(
+        onShortClick = { items, index ->
+            shortsViewModel.startFrom(items, index)
+            (activity as? MainActivity)?.openShortsTab()
+        },
+        onMoreClick = { (activity as? MainActivity)?.openShortsTab() }
+    )
 
     private enum class TabType { SUGERENCIAS, TODOS, TRENDING, CUSTOM, SUSCRIPCIONES }
     private data class TabInfo(
@@ -40,7 +55,11 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         binding.changeInstance.visibility = View.GONE
 
         binding.mainFeedRv.layoutManager = LinearLayoutManager(requireContext())
-        binding.mainFeedRv.adapter = mainAdapter
+        binding.mainFeedRv.adapter = ConcatAdapter(headAdapter, shortsShelf, tailAdapter)
+        shortsShelf.setVisible(false)
+
+        shortsViewModel.shelf.observe(viewLifecycleOwner) { shortsShelf.submit(it) }
+        shortsViewModel.loadShelf()
 
         val categories = MediaServiceRepository.instance.getTrendingCategories()
             .filter { !it.name.contains("PODCAST", ignoreCase = true) }
@@ -124,6 +143,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
         binding.refresh.setOnRefreshListener {
             binding.refresh.isRefreshing = true
+            shortsViewModel.loadShelf(force = true)
             loadContentForTab(binding.categoryTabs.selectedTabPosition)
         }
 
@@ -136,9 +156,14 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private fun submitData(videos: List<com.github.libretube.api.obj.StreamItem>?) {
         val list = videos ?: emptyList()
-        mainAdapter.submitList(list) {
+        headAdapter.submitList(list.take(VIDEOS_BEFORE_SHORTS))
+        tailAdapter.submitList(list.drop(VIDEOS_BEFORE_SHORTS)) {
             hideLoading(list.isNotEmpty())
         }
+        // La fila de Shorts va en el Inicio y las categorías, no en Suscripciones.
+        val pos = _binding?.categoryTabs?.selectedTabPosition ?: -1
+        val type = tabList.getOrNull(pos)?.type
+        shortsShelf.setVisible(list.isNotEmpty() && type != TabType.SUSCRIPCIONES)
     }
 
     private fun loadContentForTab(position: Int) {
@@ -146,7 +171,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
         showLoading()
         if (_binding != null) binding.nothingHere.isVisible = false
-        mainAdapter.submitList(emptyList())
+        headAdapter.submitList(emptyList())
+        tailAdapter.submitList(emptyList())
+        shortsShelf.setVisible(false)
 
         val tabInfo = tabList[position]
 
@@ -186,5 +213,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    companion object {
+        /** Videos antes de la fila de Shorts, como en la app de YouTube. */
+        private const val VIDEOS_BEFORE_SHORTS = 2
     }
 }

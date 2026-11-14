@@ -10,6 +10,8 @@ import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
 import javax.xml.transform.stream.StreamResult
 
+// Based off of https://github.com/TeamPiped/Piped/blob/master/src/utils/DashUtils.js
+
 object DashHelper {
 
     private val builderFactory: DocumentBuilderFactory = DocumentBuilderFactory.newInstance()
@@ -23,7 +25,7 @@ object DashHelper {
         val audioLocale: String? = null
     )
 
-    fun createManifest(streams: Streams, supportsHdr: Boolean = false): String {
+    fun createManifest(streams: Streams, supportsHdr: Boolean): String {
         val builder = builderFactory.newDocumentBuilder()
 
         val doc = builder.newDocument()
@@ -39,11 +41,15 @@ object DashHelper {
         val adapSetInfos = ArrayList<AdapSetInfo>()
 
         for (stream in streams.videoStreams) {
-            if (stream.indexEnd == null || stream.indexEnd!! <= 0) {
+            // HDR is only supported by some new devices
+            if (!supportsHdr && stream.quality.orEmpty().uppercase().contains("HDR")) {
                 continue
             }
 
-            stream.url = ProxyHelper.rewriteUrlUsingProxyPreference(stream.url.orEmpty())
+            // ignore dual format and OTF streams
+            if (!stream.videoOnly!! || stream.indexEnd!! <= 0) {
+                continue
+            }
 
             val adapSetInfo = adapSetInfos.find { it.mimeType == stream.mimeType }
             if (adapSetInfo != null) {
@@ -68,8 +74,6 @@ object DashHelper {
                 continue
             }
 
-            stream.url = ProxyHelper.rewriteUrlUsingProxyPreference(stream.url.orEmpty())
-
             adapSetInfos.add(
                 AdapSetInfo(
                     stream.mimeType!!,
@@ -93,6 +97,9 @@ object DashHelper {
                 adapSetElement.setAttribute("lang", adapSet.audioLocale)
             }
 
+            // Only add the Role element if there is a track type set
+            // This allows distinction between formats marked as original on YouTube and
+            // formats without track type info set
             if (adapSet.audioTrackType != null) {
                 val roleElement = doc.createElement("Role")
                 roleElement.setAttribute("schemeIdUri", "urn:mpeg:dash:role:2011")
@@ -112,7 +119,7 @@ object DashHelper {
             for (stream in adapSet.formats) {
                 val rep = let {
                     if (isVideo) {
-                        createVideoRepresentation(doc, stream, supportsHdr)
+                        createVideoRepresentation(doc, stream)
                     } else {
                         createAudioRepresentation(doc, stream)
                     }
@@ -124,6 +131,7 @@ object DashHelper {
         }
 
         mpd.appendChild(period)
+
         doc.appendChild(mpd)
 
         val domSource = DOMSource(doc)
@@ -183,8 +191,7 @@ object DashHelper {
 
     private fun createVideoRepresentation(
         doc: Document,
-        stream: PipedStream,
-        supportsHdr: Boolean
+        stream: PipedStream
     ): Element {
         val representation = doc.createElement("Representation")
         representation.setAttribute("codecs", stream.codec!!)
@@ -193,10 +200,6 @@ object DashHelper {
         representation.setAttribute("height", stream.height.toString())
         representation.setAttribute("maxPlayoutRate", "1")
         representation.setAttribute("frameRate", stream.fps.toString())
-
-        if (supportsHdr) {
-            representation.setAttribute("colorInfo", "hdr")
-        }
 
         val baseUrl = doc.createElement("BaseURL")
         baseUrl.appendChild(doc.createTextNode(stream.url!!))
