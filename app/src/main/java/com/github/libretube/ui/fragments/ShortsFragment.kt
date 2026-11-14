@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.annotation.OptIn
@@ -360,11 +361,51 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
     private fun updateResizeMode() {
         val size = player?.videoSize
         val vertical = size != null && size.height >= size.width
-        playerView?.resizeMode = if (vertical && !commentsOpen) {
+        playerView?.resizeMode = if (vertical && !commentsOpen && pipOverlay == null) {
             AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         } else {
             AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
+    }
+
+    /** Capa encima de toda la app con el video, mientras se ve en imagen en imagen. */
+    private var pipOverlay: FrameLayout? = null
+
+    /**
+     * En imagen en imagen el video del Short ocupa toda la ventana: se pone en una capa negra
+     * encima de la app (sobre la barra de Inicio/Shorts/... y todo lo demás) y se ve completo. Al
+     * volver, el video regresa a su página.
+     */
+    private fun showPictureInPictureOverlay(show: Boolean) {
+        val decor = activity?.window?.decorView as? ViewGroup ?: return
+        val videoView = playerView ?: return
+        if (show) {
+            if (pipOverlay != null) return
+            val overlay = FrameLayout(decor.context).apply {
+                setBackgroundColor(Color.BLACK)
+                isClickable = true
+            }
+            (videoView.parent as? ViewGroup)?.removeView(videoView)
+            overlay.addView(
+                videoView,
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            )
+            decor.addView(
+                overlay,
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            )
+            pipOverlay = overlay
+        } else {
+            val overlay = pipOverlay ?: return
+            pipOverlay = null
+            overlay.removeView(videoView)
+            (overlay.parent as? ViewGroup)?.removeView(overlay)
+            currentHolder()?.binding?.shortPlayerSlot?.addView(
+                videoView,
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            )
+        }
+        updateResizeMode()
     }
 
     private fun isInPictureInPicture(): Boolean =
@@ -424,6 +465,9 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         // En la ventana solo el video: sin botones, textos ni la barra de abajo.
         main?.setBottomBarHiddenForShorts(isInPictureInPictureMode)
         if (isInPictureInPictureMode && commentsOpen) closeComments(animated = false)
+        // El video pasa a una capa encima de toda la app (la barra de abajo no se puede quitar de
+        // forma segura: la pantalla principal vuelve a ponerla) y se ve completo, sin recortar.
+        showPictureInPictureOverlay(isInPictureInPictureMode)
         currentHolder()?.let { applyPictureInPictureLayout(it) }
         if (!isInPictureInPictureMode) {
             if (lifecycle.currentState == Lifecycle.State.CREATED) {
@@ -489,6 +533,11 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
     }
 
     override fun onDestroyView() {
+        pipOverlay?.let { overlay ->
+            overlay.removeAllViews()
+            (overlay.parent as? ViewGroup)?.removeView(overlay)
+        }
+        pipOverlay = null
         commentsAnimator?.cancel()
         if (commentsOpen && !isInPictureInPicture()) {
             (activity as? MainActivity)?.setBottomBarHiddenForShorts(false)
