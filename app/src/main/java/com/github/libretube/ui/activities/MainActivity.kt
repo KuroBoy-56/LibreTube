@@ -76,6 +76,7 @@ import com.github.libretube.ui.dialogs.ErrorDialog
 import com.github.libretube.ui.dialogs.ImportTempPlaylistDialog
 import com.github.libretube.ui.extensions.onSystemInsets
 import com.github.libretube.ui.fragments.DownloadsFragment
+import com.github.libretube.ui.fragments.ShortsFragment
 import com.github.libretube.ui.models.DownloadsViewModel
 import com.github.libretube.ui.models.PlaylistViewModel
 import com.github.libretube.ui.models.SearchViewModel
@@ -1112,6 +1113,48 @@ class MainActivity : AbstractPlayerHostActivity() {
      */
     fun setMiniPlayerHiddenForShorts(hidden: Boolean) {
         binding.container.isVisible = !hidden
+        // Mientras se ven Shorts, el imagen en imagen es de los Shorts (el reproductor principal,
+        // pausado, no debe abrir su video en esa ventana).
+        shortsOwnPictureInPicture = hidden
+    }
+
+    /** El imagen en imagen es de la sección Shorts (PlayerFragment no reacciona a él). */
+    var shortsOwnPictureInPicture = false
+        private set
+
+    /** En el imagen en imagen de Shorts solo se ve el video (sin la barra de abajo). */
+    fun setBottomBarHiddenForShorts(hidden: Boolean) {
+        binding.bottomNav.isVisible = !hidden
+    }
+
+    /** El comportamiento de desplazamiento del contenedor, guardado mientras se ven Shorts. */
+    private var fragmentScrollBehavior: androidx.coordinatorlayout.widget.CoordinatorLayout.Behavior<*>? = null
+
+    /**
+     * Shorts a pantalla completa: sin la barra de arriba y sin el comportamiento que deja el
+     * contenido debajo de ella (con la barra oculta quedaba arriba una franja fija y el Short se
+     * veía más bajo, casi cuadrado). Al salir de Shorts todo vuelve como estaba.
+     */
+    private fun applyShortsFullScreen(inShorts: Boolean) {
+        binding.appBarLayout.isVisible = !inShorts
+        val params = binding.fragment.layoutParams as androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams
+        if (inShorts) {
+            if (params.behavior != null) {
+                fragmentScrollBehavior = params.behavior
+                params.behavior = null
+            }
+        } else if (params.behavior == null) {
+            params.behavior = fragmentScrollBehavior
+                ?: com.google.android.material.appbar.AppBarLayout.ScrollingViewBehavior()
+            binding.appBarLayout.setExpanded(true, false)
+        }
+        binding.fragment.layoutParams = params
+    }
+
+    /** La sección Shorts que se está viendo, si es la pantalla actual. */
+    private fun currentShortsFragment(): ShortsFragment? {
+        val navHost = supportFragmentManager.findFragmentById(R.id.fragment) as? NavHostFragment
+        return navHost?.childFragmentManager?.primaryNavigationFragment as? ShortsFragment
     }
 
     /** Abre la sección Shorts desde la fila de Shorts del inicio. */
@@ -1228,8 +1271,7 @@ class MainActivity : AbstractPlayerHostActivity() {
         navController.addOnDestinationChangedListener { _, destination, _ ->
             // Shorts a pantalla completa, sin la barra de arriba (como la app de YouTube).
             val inShorts = destination.id == R.id.shortsFragment
-            binding.appBarLayout.isVisible = !inShorts
-            if (!inShorts) binding.appBarLayout.setExpanded(true, false)
+            applyShortsFullScreen(inShorts)
 
             // --- REGLA DINÁMICA DE AUTO-OCULTADO ---
             val params = binding.toolbar.layoutParams as com.google.android.material.appbar.AppBarLayout.LayoutParams
@@ -1506,6 +1548,9 @@ class MainActivity : AbstractPlayerHostActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+
+        // Saliendo con Home mientras suena un Short: el Short sigue en imagen en imagen vertical.
+        if (currentShortsFragment()?.onUserLeaveHint() == true) return
 
         runOnPlayerFragment {
             onUserLeaveHint()

@@ -50,8 +50,8 @@ android {
         applicationId = "com.ytlatmpx.kuropremium"
         minSdk = 26
         targetSdk = 36
-        versionCode = 28
-        versionName = "3.3.1"
+        versionCode = 29
+        versionName = "3.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue("string", "app_name", "YouTube Mod")
     }

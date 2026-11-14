@@ -3,14 +3,17 @@ package com.github.libretube.ui.fragments
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
+import android.util.Rational
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.isVisible
@@ -32,6 +35,8 @@ import com.github.libretube.api.MediaServiceRepository
 import com.github.libretube.api.ShortItem
 import com.github.libretube.api.SubscriptionHelper
 import com.github.libretube.api.obj.Streams
+import com.github.libretube.compat.PictureInPictureCompat
+import com.github.libretube.compat.PictureInPictureParamsCompat
 import com.github.libretube.databinding.FragmentShortsBinding
 import com.github.libretube.extensions.formatShort
 import com.github.libretube.extensions.toID
@@ -141,13 +146,107 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         setStatusBarHidden(true)
         view?.post { fitAboveBottomBar() }
         if (currentPosition != RecyclerView.NO_POSITION) player?.play()
+        updatePictureInPictureParams()
     }
 
     override fun onPause() {
         super.onPause()
+        // En imagen en imagen el Short sigue sonando en su ventana.
+        if (isInPictureInPicture()) return
         player?.pause()
         setStatusBarHidden(false)
+        // Fuera de Shorts no se entra solo en imagen en imagen con un Short.
+        updatePictureInPictureParams(force = true)
         (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(false)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // La ventana de imagen en imagen se cerró (o la app quedó atrás): el Short se detiene.
+        if (!isInPictureInPicture()) player?.pause()
+    }
+
+    private fun isInPictureInPicture(): Boolean =
+        activity?.let { PictureInPictureCompat.isInPictureInPictureMode(it) } == true
+
+    /**
+     * Imagen en imagen vertical, como la app de YouTube: mientras un Short suena, al salir con
+     * Home sigue en una ventana con la forma del video (9:16). En Android 12 o más entra solo; en
+     * versiones anteriores lo hace [onUserLeaveHint].
+     */
+    private fun pictureInPictureParams(): PictureInPictureParamsCompat {
+        val playing = player?.isPlaying == true
+        val builder = PictureInPictureParamsCompat.Builder()
+            .setAutoEnterEnabled(PlayerHelper.pipEnabled && playing && isResumed)
+        val size = player?.videoSize
+        if (size != null && size.width > 0 && size.height > 0) {
+            builder.setAspectRatio(size)
+        } else {
+            builder.setAspectRatio(Rational(9, 16))
+        }
+        playerView?.let { videoView ->
+            val rect = Rect()
+            if (videoView.isAttachedToWindow && videoView.getGlobalVisibleRect(rect)) builder.setSourceRectHint(rect)
+        }
+        return builder.build()
+    }
+
+    /**
+     * Pone los parámetros del imagen en imagen de Shorts. Solo mientras la ventana es de Shorts,
+     * salvo [force] (al salir de Shorts, para apagar la entrada automática).
+     */
+    private fun updatePictureInPictureParams(force: Boolean = false) {
+        val activity = activity ?: return
+        if (!PictureInPictureCompat.isPictureInPictureAvailable(activity)) return
+        if (!force && (activity as? MainActivity)?.shortsOwnPictureInPicture != true) return
+        runCatching { PictureInPictureCompat.setPictureInPictureParams(activity, pictureInPictureParams()) }
+    }
+
+    /**
+     * Salida con Home (la llama MainActivity): si un Short está sonando, entra en imagen en
+     * imagen. Devuelve true si lo hizo.
+     */
+    fun onUserLeaveHint(): Boolean {
+        val activity = activity ?: return false
+        if (!isResumed || player?.isPlaying != true || !PlayerHelper.pipEnabled) return false
+        if (!PictureInPictureCompat.isPictureInPictureAvailable(activity)) return false
+        if ((activity as? MainActivity)?.shortsOwnPictureInPicture != true) return false
+        return runCatching {
+            PictureInPictureCompat.enterPictureInPictureMode(activity, pictureInPictureParams())
+            true
+        }.getOrDefault(false)
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        val main = activity as? MainActivity
+        // En la ventana solo el video: sin botones, textos ni la barra de abajo.
+        main?.setBottomBarHiddenForShorts(isInPictureInPictureMode)
+        currentHolder()?.let { applyPictureInPictureLayout(it) }
+        if (!isInPictureInPictureMode) {
+            if (lifecycle.currentState == Lifecycle.State.CREATED) {
+                // Se cerró la ventana: el Short se detiene y la app queda como antes.
+                player?.pause()
+                updatePictureInPictureParams(force = true)
+                main?.setMiniPlayerHiddenForShorts(false)
+                setStatusBarHidden(false)
+            }
+            view?.post { fitAboveBottomBar() }
+        } else {
+            _binding?.root?.setPadding(0, 0, 0, 0)
+        }
+    }
+
+    /** Oculta (en imagen en imagen) o muestra lo que va encima del video de una página. */
+    private fun applyPictureInPictureLayout(holder: ShortsPagerAdapter.PageViewHolder) {
+        val show = !isInPictureInPicture()
+        with(holder.binding) {
+            shortActions.isVisible = show
+            shortInfo.isVisible = show
+            shortGradient.isVisible = show
+            shortProgress.isVisible = show
+            if (!show) shortPlayIcon.isVisible = false
+        }
     }
 
     private val bottomBarListener = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -217,6 +316,7 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (isPlaying) currentHolder()?.binding?.shortPlayIcon?.isVisible = false
+                    updatePictureInPictureParams()
                 }
 
                 override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -226,6 +326,7 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
                     } else {
                         AspectRatioFrameLayout.RESIZE_MODE_FIT
                     }
+                    updatePictureInPictureParams()
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
@@ -355,6 +456,7 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
             ImageHelper.loadImage(it, b.shortChannelSquareImage)
         }
         b.shortProgress.progress = 0
+        applyPictureInPictureLayout(holder)
         if (holder.bindingAdapterPosition != currentPosition) {
             b.shortThumbnail.isVisible = true
             b.shortBuffering.isVisible = false
@@ -395,6 +497,7 @@ class ShortsFragment : Fragment(R.layout.fragment_shorts) {
         // Comentarios: abre el Short en el reproductor, donde están los comentarios y la descripción.
         b.shortComments.setOnClickListener {
             player?.pause()
+            updatePictureInPictureParams(force = true)
             (activity as? MainActivity)?.setMiniPlayerHiddenForShorts(false)
             NavigationHelper.navigateVideo(context, PlayerData(item.videoId))
         }

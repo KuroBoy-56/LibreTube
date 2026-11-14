@@ -1328,6 +1328,8 @@ class PlayerFragment : Fragment(R.layout.fragment_player), CustomPlayerCallback 
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        // El imagen en imagen es de un Short (sección Shorts): este video, pausado, no se mete.
+        if ((activity as? com.github.libretube.ui.activities.MainActivity)?.shortsOwnPictureInPicture == true) return
         if (isInPictureInPictureMode) {
             disableController()
 
